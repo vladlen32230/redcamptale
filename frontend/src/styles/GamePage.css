@@ -1,0 +1,856 @@
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  /* Consider overflow: hidden; on body if you don't want any body scrollbars */
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+.game-page {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Background */
+.game-background {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center;
+  z-index: 1;
+  transition: background-image 0.5s ease-in-out;
+}
+
+/* Characters Container */
+.characters-container {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  z-index: 2;
+  padding-bottom: 0;
+  height: auto;
+}
+
+.character-sprite {
+  position: relative;
+  height: 80vh;
+  width: 25vw;
+  object-fit: cover;
+  object-position: center bottom;
+}
+
+/* Character transition effects */
+.character-sprite.fading-in {
+  animation: fadeIn 0.8s ease-in-out;
+  opacity: 1;
+}
+
+.character-sprite.fading-out {
+  animation: fadeOut 0.8s ease-in-out;
+  position: absolute;
+  bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+  height: 80vh;
+  width: 25vw;
+  object-fit: cover;
+  object-position: center bottom;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Add a container for transitioning characters to maintain their positions */
+.characters-transition-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 95vh;
+  z-index: 1; /* Place below new characters */
+  pointer-events: none; /* Prevent clicks on fading characters */
+}
+
+.character-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-size: cover;
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  transition: background-image 0.5s ease-in-out;
+}
+
+/* Message Box */
+.message-box {
+  position: fixed;
+  width: 95vw;
+  max-width: 100%;
+  margin-top: 1vh;
+  margin-bottom: 1vh;
+  display: flex;
+  flex-direction: column;
+  background-color: rgba(0, 0, 0, 0.7);
+  border-radius: 10px;
+  padding: 15px;
+  color: white;
+  z-index: 6;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+  border: 2px solid #006400;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+/* Message History */
+.message-history-container {
+  overflow-y: auto;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 5px;
+  border: 1px solid #006400;
+}
+
+.message-history {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message-item {
+  padding: 8px;
+  border-radius: 5px;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-left: 3px solid #9acd32;
+}
+
+.message-item.clickable {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.message-item.clickable:hover {
+  background-color: rgba(0, 100, 0, 0.5);
+  border-left: 3px solid #ff9900;
+  transform: translateX(3px);
+}
+
+.message-item.clickable:active {
+  background-color: rgba(0, 100, 0, 0.7);
+  transform: translateX(1px);
+}
+
+/* Scrollbar styles for message history */
+.message-history-container::-webkit-scrollbar {
+  width: 8px;
+}
+
+.message-history-container::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.message-history-container::-webkit-scrollbar-thumb {
+  background-color: #006400;
+  border-radius: 4px;
+}
+
+.message-history-container::-webkit-scrollbar-thumb:hover {
+  background-color: #008000;
+}
+
+.character-name {
+  font-weight: bold;
+  font-size: 1.2rem;
+  color: #9acd32;
+  margin-bottom: 5px;
+  text-transform: capitalize;
+}
+
+.message-text {
+  font-size: 1rem;
+  line-height: 1.4;
+  margin-bottom: 10px;
+}
+
+/* User Input Area */
+.user-input-container {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.user-input {
+  flex: 1;
+  padding: 5px;
+  border-radius: 5px;
+  border: 1px solid #006400;
+  background-color: rgba(255, 255, 255, 0.9);
+  font-size: 0.8rem;
+}
+
+.send-button {
+  padding: 10px 20px;
+  background-color: #006400;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.send-button:hover {
+  background-color: #008000;
+}
+
+/* Loading and Error States */
+.loading-container, .error-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  z-index: 10;
+}
+
+.loading-spinner {
+  border: 5px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 5px solid #ff9900;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error-container h2 {
+  color: #ff0000;
+  margin-bottom: 10px;
+}
+
+.error-container button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: #006400;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.error-container button:hover {
+  background-color: #008000;
+}
+
+/* Game Controls */
+.game-controls {
+  width: auto;
+  min-height: 30px;
+  max-height: 80px;
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  background-color: transparent;
+  z-index: auto;
+}
+
+.left-controls,
+.right-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+.control-button {
+  font-size: 0.9rem;
+  padding: 8px 15px;
+  margin: 0;
+  white-space: nowrap;
+  background-color: rgba(0, 100, 0, 0.9);
+  color: white;
+  border: 2px solid #9acd32;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+  width: auto;
+  min-width: 0;
+}
+
+.control-button:hover {
+  background-color: rgba(165, 42, 42, 0.9);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.control-button:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Map Modal */
+.map-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.map-container {
+  width: auto;
+  max-width: 90%;
+  height: auto;
+  max-height: 90%;
+  background-color: transparent;
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 5px 10px;
+  background-color: rgba(0, 100, 0, 0.8);
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+}
+
+.map-header h2 {
+  color: white;
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.close-button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 5rem;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  transition: color 0.2s ease;
+}
+
+.close-button:hover {
+  color: #ff9900;
+}
+
+.map-header .control-button {
+  position: absolute;
+  right: 10px;
+  top: 5px;
+  z-index: 11;
+  margin-left: 8px;
+  background-color: #ff9900;
+  color: #fff;
+  border: 2px solid #fff;
+  font-size: 1rem;
+  padding: 6px 18px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  transition: background 0.2s, color 0.2s;
+}
+
+.map-header .control-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.map-header .control-button:hover:not(:disabled) {
+  background-color: #ffb84d;
+  color: #333;
+}
+
+.map-content {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.map-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.7);
+  color: white;
+}
+
+/* Map image container */
+.map-image-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.map-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Character head on map - using inline styles now */
+
+/* Map location markers */
+.map-image-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.location-marker {
+  transition: all 0.3s ease;
+}
+
+.location-marker:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+  background-color: rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.8);
+}
+
+.location-marker:active {
+  transform: translate(-50%, -50%) scale(0.9);
+}
+
+.input-loading-spinner {
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top: 3px solid #ff9900;
+  width: 18px;
+  height: 18px;
+  animation: spin 1s linear infinite;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Followers in map modal */
+.followers-corner {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  background: rgba(255,255,255,0.85);
+  padding: 3px 3px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 20;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+  margin: 0;
+}
+
+.followers-label {
+  font-weight: bold;
+  color: #333;
+  margin-right: 8px;
+  font-size: 3vw;
+}
+
+.followers-heads {
+  display: flex;
+  gap: 6px;
+}
+
+.follower-head {
+  width: 5vw;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #9acd32;
+  background: #fff;
+}
+
+/* Fullscreen loading overlay for location change */
+.fullscreen-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.fullscreen-loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.fullscreen-loading-spinner .loading-spinner {
+  width: 64px;
+  height: 64px;
+  border-width: 7px;
+  margin-bottom: 18px;
+}
+
+.fullscreen-loading-spinner p {
+  color: #fff;
+  font-size: 1.3rem;
+  font-weight: bold;
+  margin: 0;
+}
+
+.map-content .map-wait-button {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  background-color: #ff9900;
+  color: #fff;
+  border: 2px solid #fff;
+  font-size: 2vw;
+  padding: 6px 18px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+  transition: background 0.2s, color 0.2s;
+  z-index: 11;
+}
+
+.map-wait-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.map-wait-button:hover:not(:disabled) {
+  background-color: #ffb84d;
+  color: #333;
+}
+
+/* Saves Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.saves-modal {
+  width: 90%;
+  max-width: 1000px;
+  background-color: rgba(0, 0, 0, 0.5);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #9acd32;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+
+}
+
+.modal-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #004800;
+  border-bottom: 2px solid #9acd32;
+  position: relative;
+}
+
+.modal-header h3 {
+  color: white;
+  margin: 0;
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  font-weight: bold;
+}
+
+.modal-content {
+  padding: 20px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background-color: transparent;
+}
+
+.error-message {
+  color: #ff6b6b;
+  background-color: rgba(255, 107, 107, 0.1);
+  padding: 10px;
+  border-radius: 5px;
+  margin-bottom: 15px;
+  border-left: 3px solid #ff6b6b;
+}
+
+.save-form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.save-input {
+  flex: 1;
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #006400;
+  background-color: rgba(255, 255, 255, 0.9);
+  font-size: 1rem;
+}
+
+.save-button {
+  padding: 10px 20px;
+  background-color: #006400;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+  white-space: nowrap;
+  text-transform: uppercase;
+  background-color: #006400;
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+.save-button:hover:not(:disabled) {
+  background-color: #008000;
+}
+
+.save-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.saves-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loading, .no-saves {
+  text-align: center;
+  padding: 20px;
+  color: #ccc;
+  font-style: italic;
+}
+
+.save-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background-color: rgba(0, 0, 0, 1);
+  border-radius: 0;
+  border-left: 3px solid #9acd32;
+  transition: all 0.2s ease;
+  margin-bottom: 10px;
+}
+
+.save-item:hover {
+  background-color: rgba(0, 100, 0, 0.5);
+  transform: translateX(3px);
+}
+
+.save-info {
+  flex: 1;
+}
+
+.save-description {
+  font-weight: bold;
+  color: #9acd32;
+  margin-bottom: 5px;
+  font-size: 1.1rem;
+  text-transform: uppercase;
+}
+
+.save-date {
+  font-size: 0.9rem;
+  color: #ccc;
+}
+
+.save-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-button {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  font-weight: bold;
+}
+
+.action-button.edit {
+  background-color: #4a90e2;
+  color: white;
+}
+
+.action-button.load {
+  background-color: #9acd32;
+  color: white;
+}
+
+.action-button.delete {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.action-button:hover {
+  transform: scale(1.1);
+  filter: brightness(1.1);
+}
+
+.action-button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Responsive adjustments for mobile devices */
+@media (orientation: portrait) and (max-width: 767px) {
+  .game-page {
+    /* Reverted rotation and related properties */
+    transform: none; 
+    transform-origin: unset;
+    width: 100%; 
+    height: 100vh;
+    overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+    overflow-y: auto;   /* Allow vertical scroll if content exceeds height */
+    position: relative; /* Ensure it's a positioning context for children */
+    /* top, left, translate removed */
+  }
+
+  /* Ensure message box doesn't overlap with top controls AND reverts width */
+  .message-box {
+    width: 95vw;
+    max-width: 100%;
+    margin-top: 1vh;
+    margin-bottom: 1vh;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+  }
+
+
+  .messages-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    min-height: 50px;
+  }
+
+  .game-controls {
+    width: auto;
+    min-height: 30px;
+    max-height: 80px;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    background-color: transparent;
+    z-index: auto;
+  }
+
+  .left-controls,
+  .right-controls {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .control-button {
+    font-size: 2.3vw;
+    padding: 5px 10px;
+    margin: 0;
+    white-space: nowrap;
+  }
+
+
+
+  .character-sprite,
+  .character-sprite.fading-out {
+    width: 80vw; /* Increased from 80vw for much better visibility on mobile */
+    height: 53vh; /* Reduced height to fit all characters on page */
+    /* max-width: 700px; is inherited */
+    /* Ensure cropping is maintained on mobile */
+    object-fit: cover;
+    object-position: center bottom;
+  }
+}

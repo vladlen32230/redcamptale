@@ -1,0 +1,4 @@
+**/__pycache__
+backend/.venv
+docker-compose.yaml
+frontend/.firebase
