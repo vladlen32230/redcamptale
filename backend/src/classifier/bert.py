@@ -1,4 +1,7 @@
-from transformers import pipeline
+import onnxruntime as ort
+import numpy as np
+from transformers import AutoTokenizer
+from scipy.special import softmax
 from src.schemas.database import Message, CharacterSprite
 from src.schemas.states.characters import Character
 from src.schemas.states.music import Music
@@ -23,61 +26,103 @@ class DistilBertClassifier:
     
     def __init__(self):
         if not self.initialized:
-            self.speaker_classifier = None
-            self.sprite_classifier = None
-            self.music_classifier = None
+            self.speaker_session = None
+            self.sprite_session = None
+            self.speaker_tokenizer = None
+            self.sprite_tokenizer = None
             self.initialized = True
     
     def load_model(self):
         """
-        Load the zero-shot classification pipelines for different tasks
+        Load the quantized ONNX models and tokenizers for different tasks
         """
-        # Model for next speaker prediction
-        speaker_model = "MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli"
-        logger.info(f"Loading speaker prediction model: {speaker_model}")
-        self.speaker_classifier = pipeline(
-            "zero-shot-classification",
-            model=speaker_model,
-            device='cpu',
-            use_fast=False,
-            max_length=512
+        
+        speaker_model_path = "models_cache/speaker_quantized/onnx_model/model.onnx"
+        sprite_model_path = "models_cache/sprite_quantized/onnx_model/model.onnx"
+        
+        # Model names for tokenizers
+        speaker_model_name = "MoritzLaurer/deberta-v3-large-zeroshot-v1.1-all-33"
+        sprite_model_name = "MoritzLaurer/deberta-v3-large-zeroshot-v1.1-all-33"
+        
+        # Configure ONNX Runtime for CPU with optimizations
+        providers = ['CPUExecutionProvider']
+        session_options = ort.SessionOptions()
+        session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        session_options.intra_op_num_threads = 4
+        session_options.inter_op_num_threads = 1
+        
+        # Load speaker model
+        logger.info(f"Loading quantized speaker prediction model: {speaker_model_path}")
+        self.speaker_session = ort.InferenceSession(
+            speaker_model_path, 
+            sess_options=session_options,
+            providers=providers
+        )
+        self.speaker_tokenizer = AutoTokenizer.from_pretrained(speaker_model_name)
+        
+        # Load sprite model
+        logger.info(f"Loading quantized sprite prediction model: {sprite_model_path}")
+        self.sprite_session = ort.InferenceSession(
+            sprite_model_path,
+            sess_options=session_options, 
+            providers=providers
+        )
+        self.sprite_tokenizer = AutoTokenizer.from_pretrained(sprite_model_name)
+        
+        logger.info("All quantized ONNX models loaded successfully!")
+
+    def _onnx_zero_shot_classification(self, session, tokenizer, text, candidate_labels, hypothesis_template):
+        """Perform zero-shot classification using ONNX model"""
+        # Create premise-hypothesis pairs
+        pairs = [(text, hypothesis_template.format(label)) for label in candidate_labels]
+        
+        # Tokenize
+        batch_inputs = tokenizer(
+            pairs, padding=True, truncation=True, max_length=512, return_tensors="np"
         )
         
-        # Model for sprite prediction
-        sprite_model = "MoritzLaurer/deberta-v3-xsmall-zeroshot-v1.1-all-33"
-        logger.info(f"Loading sprite prediction model: {sprite_model}")
-        self.sprite_classifier = pipeline(
-            "zero-shot-classification",
-            model=sprite_model,
-            device='cpu',
-            use_fast=False,
-            max_length=512
-        )
+        ort_inputs = {
+            'input_ids': batch_inputs['input_ids'].astype(np.int64),
+            'attention_mask': batch_inputs['attention_mask'].astype(np.int64)
+        }
+        
+        # Run inference
+        logits = session.run(None, ort_inputs)[0]
+        entailment_scores = logits[:, 0]
 
-        logger.info("All models loaded successfully!")
+        # Get probabilities and sort results
+        probs = softmax(entailment_scores)
+        sorted_indices = np.argsort(probs)[::-1]
+        
+        return {
+            'labels': [candidate_labels[i] for i in sorted_indices],
+            'scores': [float(probs[i]) for i in sorted_indices]
+        }
 
     def _convert_messages_to_string(self, messages: list[Message]) -> str:
         return "\n[SEP]\n".join(f"{message.character}: {message.english_text}" for message in messages)
-
 
     def determine_next_speaking_character(
         self,
         messages: list[Message], 
         characters: list[Character]
     ) -> Character:
-        #dialogue history: A: ... \n\n B: ...
         history = self._convert_messages_to_string(reversed(messages)) + "\n[SEP]\n"
         if len(characters) == 1:
             return characters[0]
 
-        result = self.speaker_classifier(
+        candidate_labels = [character.value for character in characters]
+        hypothesis_template = "The character {} is mentioned in the dialogue."
+        
+        result = self._onnx_zero_shot_classification(
+            self.speaker_session, 
+            self.speaker_tokenizer,
             history,
-            candidate_labels=[character.value for character in characters],
-            hypothesis_template=f"The character {{}} is mentioned in the dialogue."
+            candidate_labels,
+            hypothesis_template
         )
 
         return str_to_enum(result['labels'][0], Character)
-
 
     def determine_next_chracter_sprite(
         self,
@@ -87,27 +132,37 @@ class DistilBertClassifier:
     ) -> CharacterSprite:
         history = self._convert_messages_to_string(messages)
 
-        #get character pose
+        # Get character pose
         character_poses: tuple[Pose] = valid_character_poses[chracter_name]
         poses_descriptions = [pose.get_pose_description(pose) for pose in character_poses]
 
-        result = self.sprite_classifier(
+        hypothesis_template = f"The {chracter_name} mood based on his response is {{}}"
+        
+        result = self._onnx_zero_shot_classification(
+            self.speaker_session,
+            self.speaker_tokenizer,
             history,
-            candidate_labels=poses_descriptions,
-            hypothesis_template=f"The {chracter_name} mood based on his response is {{}}"
+            poses_descriptions,
+            hypothesis_template
         )
+
+        print(result)
 
         i = poses_descriptions.index(result['labels'][0])
         character_pose = character_poses[i]
 
-        #get character face
+        # Get character face
         face_expressions = valid_character_expressions[character_pose]
         face_expressions_descriptions = [face.get_facial_expression_description(face) for face in face_expressions]
 
-        result = self.sprite_classifier(
+        hypothesis_template = f"The {chracter_name} face expression based on response is {{}}"
+        
+        result = self._onnx_zero_shot_classification(
+            self.sprite_session,
+            self.sprite_tokenizer,
             history,
-            candidate_labels=face_expressions_descriptions,
-            hypothesis_template=f"The {chracter_name} face expression based on response is {{}}"
+            face_expressions_descriptions,
+            hypothesis_template
         )
 
         i = face_expressions_descriptions.index(result['labels'][0])
@@ -120,7 +175,6 @@ class DistilBertClassifier:
             clothes=character_clothes
         )
 
-
     def determine_following(
         self,
         character: Character,
@@ -129,10 +183,15 @@ class DistilBertClassifier:
     ) -> bool:
         history = self._convert_messages_to_string(reversed(messages))
 
-        result = self.speaker_classifier(
+        candidate_labels = ["agreed to follow", "refused to follow"]
+        hypothesis_template = f"The {character} {{}} {user_character_name} whether he wants to go."
+        
+        result = self._onnx_zero_shot_classification(
+            self.speaker_session,
+            self.speaker_tokenizer,
             history,
-            candidate_labels=["agreed to follow", "refused to follow"],
-            hypothesis_template=f"The {character} {{}} {user_character_name} whether he wants to go."  
+            candidate_labels,
+            hypothesis_template
         )
 
         follow_score = None
@@ -142,7 +201,6 @@ class DistilBertClassifier:
                 break
 
         return follow_score is not None and follow_score > 0.975
-
 
     def determine_music(
         self,
@@ -154,10 +212,14 @@ class DistilBertClassifier:
         musics = [m for m in Music if m != Music.NONE]
         music_descriptions = [m.get_music_description(m) for m in musics]
 
-        result = self.speaker_classifier(
+        hypothesis_template = "Mood of conversation is {}"
+        
+        result = self._onnx_zero_shot_classification(
+            self.sprite_session,
+            self.sprite_tokenizer,
             history,
-            candidate_labels=music_descriptions,
-            hypothesis_template=f"Mood of conversation is {{}}"
+            music_descriptions,
+            hypothesis_template
         )
 
         # Get the top score
