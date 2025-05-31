@@ -41,7 +41,7 @@ target_metadata = SQLModel.metadata
 
 def get_url():
     """Get database URL from environment variable."""
-    return os.environ.get("DATABASE_URL", "postgresql://postgres:GqVySpdq!@35.228.130.151:5432/postgres")
+    return os.environ.get("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
 
 
 def run_migrations_offline() -> None:
