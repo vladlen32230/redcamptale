@@ -4,18 +4,63 @@ import translations from '../translations';
 import '../styles/HomePage.css';
 
 // Backend URL configuration
-// const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
-const BACKEND_URL = 'http://192.168.0.12:8080';
+const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
 
 const HomePage = () => {
   // Authentication state - determined by JWT in localStorage
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [loadingUserData, setLoadingUserData] = useState(false);
   
-  // Check for JWT token on component mount
+  // Check for JWT token on component mount and fetch user data if authenticated
   useEffect(() => {
     const token = localStorage.getItem('token');
-    setIsAuthenticated(!!token);
+    const isAuth = !!token;
+    setIsAuthenticated(isAuth);
+    
+    if (isAuth) {
+      fetchUserData();
+    }
   }, []);
+
+  // Fetch user data for authenticated users
+  const fetchUserData = async () => {
+    setLoadingUserData(true);
+    try {
+      const token = localStorage.getItem('token');
+      const headers = { 'Authorization': `Bearer ${token}` };
+      
+      // Map currentLang for the query parameter
+      const apiQueryLanguage = currentLang === 'en' ? 'english' : 'russian';
+
+      const response = await fetch(`${BACKEND_URL}/api/v1/user/me?lang=${apiQueryLanguage}`, {
+        method: 'GET',
+        headers: headers
+      });
+      
+      if (!response.ok) {
+        // If unauthorized, token is likely expired
+        if (response.status === 401) {
+          localStorage.removeItem('token');
+          setIsAuthenticated(false);
+          setUserData(null);
+          return;
+        }
+        throw new Error('Failed to fetch user data');
+      }
+      
+      const data = await response.json();
+      setUserData(data);
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      // On error, clear authentication
+      localStorage.removeItem('token');
+      setIsAuthenticated(false);
+      setUserData(null);
+    } finally {
+      setLoadingUserData(false);
+    }
+  };
   
   // Form visibility states
   const [showLoginForm, setShowLoginForm] = useState(false);
@@ -48,6 +93,7 @@ const HomePage = () => {
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
+    setUserData(null);
   };
 
   // Switch language
@@ -133,6 +179,8 @@ const HomePage = () => {
       localStorage.setItem('token', data.access_token);
       // Update authentication state
       setIsAuthenticated(true);
+      // Fetch user data
+      await fetchUserData();
       // Close the form
       handleCloseForm();
     } catch (error) {
@@ -246,15 +294,12 @@ const HomePage = () => {
   const [showHelpModal, setShowHelpModal] = useState(false);
   
   // Loading and error states
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
   const [savesLoading, setSavesLoading] = useState(false);
   const [savesError, setSavesError] = useState('');
   const [savingGame, setSavingGame] = useState(false);
   const [loadingSave, setLoadingSave] = useState(false);
   
   // Account state
-  const [userData, setUserData] = useState(null);
   const [accountFormData, setAccountFormData] = useState({});
   const [updateSuccess, setUpdateSuccess] = useState('');
   const [updateError, setUpdateError] = useState('');
@@ -264,25 +309,6 @@ const HomePage = () => {
   const [saves, setSaves] = useState([]);
   const [saveDescription, setSaveDescription] = useState('');
   const [editingSaveId, setEditingSaveId] = useState(null);
-
-  // Add some custom styles for the account modal
-  const modalStyles = {
-    authSection: {
-      marginBottom: '20px',
-      padding: '15px',
-      backgroundColor: 'rgba(0, 0, 0, 0.05)',
-      borderRadius: '5px',
-      border: '1px solid #ddd'
-    },
-    authButtons: {
-      display: 'flex',
-      gap: '10px',
-      marginTop: '15px'
-    },
-    formButton: {
-      minWidth: '120px'
-    }
-  };
 
   // Function to handle contacts button click
   const handleContactsClick = () => {
@@ -296,66 +322,27 @@ const HomePage = () => {
   
   // Function to handle my account button click
   const handleMyAccountClick = async () => {
-    // Always fetch user data and show account modal
-    setLoading(true);
-    setError('');
+    // For authenticated users, just show the account modal with current data
     setUpdateError('');
     setUpdateSuccess('');
-    try {
-      // Get token if available
-      const token = localStorage.getItem('token');
-      const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-      
-      // Map currentLang for the query parameter
-      const apiQueryLanguage = currentLang === 'en' ? 'english' : 'russian';
-
-      // Fetch user data - the backend will return IP-based user if not authenticated
-      // Append language query parameter
-      const response = await fetch(`${BACKEND_URL}/api/v1/user/me?lang=${apiQueryLanguage}`, {
-        method: 'GET',
-        headers: headers
-      });
-      
-      if (!response.ok) {
-        // If unauthorized but we had a token, it's likely expired
-        if (response.status === 401 && token) {
-          localStorage.removeItem('token');
-          setIsAuthenticated(false);
-          // Try again without the token
-          return handleMyAccountClick();
-        }
-        throw new Error(currentLang === 'en' ? 'Failed to load account data' : 'Не удалось загрузить данные аккаунта');
-      }
-      
-      const data = await response.json();
-      setUserData(data);
-
+    
+    if (userData) {
       // Determine which biography to display based on currentLang
-      let biographyNameToDisplay = data.user_biography_name;
-      let biographyDescriptionToDisplay = data.user_biography_description;
+      let biographyNameToDisplay = userData.user_biography_name;
+      let biographyDescriptionToDisplay = userData.user_biography_description;
 
-      if (currentLang === 'ru' && data.user_biography_russian_name && data.user_biography_russian_description) {
-        biographyNameToDisplay = data.user_biography_russian_name;
-        biographyDescriptionToDisplay = data.user_biography_russian_description;
+      if (currentLang === 'ru' && userData.user_biography_russian_name && userData.user_biography_russian_description) {
+        biographyNameToDisplay = userData.user_biography_russian_name;
+        biographyDescriptionToDisplay = userData.user_biography_russian_description;
       }
 
       setAccountFormData({
         game_name: biographyNameToDisplay,
         game_biography: biographyDescriptionToDisplay
       });
-      setShowAccountModal(true);
-    } catch (error) {
-      setError(error.message);
-      // Still show account modal even if there's an error
-      setShowAccountModal(true);
-      
-      // Clear error message after 1 second
-      setTimeout(() => {
-        setError('');
-      }, 3000);
-    } finally {
-      setLoading(false);
     }
+    
+    setShowAccountModal(true);
   };
 
   // Function to close account modal
@@ -381,10 +368,7 @@ const HomePage = () => {
     
     try {
       const token = localStorage.getItem('token');
-      // Only include Authorization header if token exists
-      const headers = token 
-        ? { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } 
-        : { 'Content-Type': 'application/json' };
+      const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
       
       // Map currentLang to backend expected values for the payload
       const apiPayloadLanguage = currentLang === 'en' ? 'english' : 'russian';
@@ -423,14 +407,14 @@ const HomePage = () => {
       });
       setUpdateSuccess(currentLang === 'en' ? 'Account updated successfully!' : 'Аккаунт успешно обновлен!');
       
-      // Clear success message after 1 second
+      // Clear success message after 3 seconds
       setTimeout(() => {
         setUpdateSuccess('');
       }, 3000);
     } catch (error) {
       setUpdateError(error.message);
       
-      // Clear error message after 1 second
+      // Clear error message after 3 seconds
       setTimeout(() => {
         setUpdateError('');
       }, 3000);
@@ -886,43 +870,11 @@ const HomePage = () => {
               </div>
             </div>
             
-            {error && <div className="error-message">{error}</div>}
-            {loading ? (
-              <p>{currentLang === 'en' ? 'Loading...' : 'Загрузка...'}</p>
-            ) : userData && (
+            {userData && (
               <div className="account-details">
-                {!isAuthenticated && (
-                  <div className="auth-section" style={modalStyles.authSection}>
-                    <h3>{currentLang === 'en' ? 'Authentication' : 'Авторизация'}</h3>
-                    <p>{currentLang === 'en' ? 'You are not logged in.' : 'Вы не вошли в систему.'}</p>
-                    <div className="auth-buttons" style={modalStyles.authButtons}>
-                      <button 
-                        className="form-button" 
-                        style={modalStyles.formButton} 
-                        onClick={() => {
-                          setShowAccountModal(false);
-                          handleShowLoginForm();
-                        }}
-                      >
-                        {currentLang === 'en' ? 'Login' : 'Войти'}
-                      </button>
-                      <button 
-                        className="form-button" 
-                        style={modalStyles.formButton} 
-                        onClick={() => {
-                          setShowAccountModal(false);
-                          handleShowRegisterForm();
-                        }}
-                      >
-                        {currentLang === 'en' ? 'Register' : 'Зарегистрироваться'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-                
                 <div className="account-info">
                   <h3>{currentLang === 'en' ? 'Account Information' : 'Информация об аккаунте'}</h3>
-                  {userData.name && <p style={{ fontSize: '2rem' }}><strong>{currentLang === 'en' ? 'Username' : 'Имя пользователя'}:</strong> {userData.name}</p>}
+                  <p style={{ fontSize: '2rem' }}><strong>{currentLang === 'en' ? 'Username' : 'Имя пользователя'}:</strong> {userData.name}</p>
                 </div>
                 
                 <div className="character-info">
@@ -938,7 +890,7 @@ const HomePage = () => {
                         type="text"
                         id="game_name"
                         name="game_name"
-                        value={accountFormData.game_name}
+                        value={accountFormData.game_name || ''}
                         onChange={handleAccountUpdateChange}
                         required
                       />
@@ -950,7 +902,7 @@ const HomePage = () => {
                       <textarea
                         id="game_biography"
                         name="game_biography"
-                        value={accountFormData.game_biography}
+                        value={accountFormData.game_biography || ''}
                         onChange={handleAccountUpdateChange}
                         rows="4"
                         required
@@ -966,60 +918,42 @@ const HomePage = () => {
                 
                 {/* Account Actions Section */}
                 <div className="account-actions" style={{ marginTop: '20px', borderTop: '1px solid #ddd', paddingTop: '20px' }}>
-                  {/* Authenticated-only actions */}
-                  {isAuthenticated && (
-                    <>
-                      <div style={{ marginBottom: '15px' }}>
+                  {/* Delete Account Section */}
+                  {deleteConfirm ? (
+                    <div className="delete-confirm">
+                      <p className="warning-text" style={{ color: '#d9534f', marginBottom: '10px' }}>
+                        {currentLang === 'en' 
+                          ? 'Are you sure? This action cannot be undone.'
+                          : 'Вы уверены? Это действие нельзя отменить.'}
+                      </p>
+                      <div className="confirm-buttons" style={{ display: 'flex', gap: '10px' }}>
                         <button 
                           className="form-button" 
-                          style={{ backgroundColor: '#4a6da7', color: 'white', width: '100%' }}
-                          onClick={() => {
-                            handleLogout();
-                            setShowAccountModal(false);
-                          }}
-                        >
-                          {currentLang === 'en' ? 'Logout' : 'Выйти'}
-                        </button>
-                      </div>
-                      
-                      {/* Delete Account Section - only for authenticated users */}
-                      {deleteConfirm ? (
-                        <div className="delete-confirm">
-                          <p className="warning-text" style={{ color: '#d9534f', marginBottom: '10px' }}>
-                            {currentLang === 'en' 
-                              ? 'Are you sure? This action cannot be undone.'
-                              : 'Вы уверены? Это действие нельзя отменить.'}
-                          </p>
-                          <div className="confirm-buttons" style={{ display: 'flex', gap: '10px' }}>
-                            <button 
-                              className="form-button" 
-                              style={{ backgroundColor: '#d9534f', color: 'white', flex: 1 }}
-                              onClick={handleDeleteAccount}
-                            >
-                              {currentLang === 'en' ? 'Yes, delete my account' : 'Да, удалить мой аккаунт'}
-                            </button>
-                            <button 
-                              className="form-button" 
-                              style={{ backgroundColor: '#f0f0f0', color: '#333', flex: 1 }}
-                              onClick={() => setDeleteConfirm(false)}
-                            >
-                              {currentLang === 'en' ? 'Cancel' : 'Отмена'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button 
-                          className="form-button" 
-                          style={{ backgroundColor: '#d9534f', color: 'white', width: '100%' }}
+                          style={{ backgroundColor: '#d9534f', color: 'white', flex: 1 }}
                           onClick={handleDeleteAccount}
                         >
-                          {currentLang === 'en' ? 'Delete Account' : 'Удалить аккаунт'}
+                          {currentLang === 'en' ? 'Yes, delete my account' : 'Да, удалить мой аккаунт'}
                         </button>
-                      )}
-                    </>
+                        <button 
+                          className="form-button" 
+                          style={{ backgroundColor: '#f0f0f0', color: '#333', flex: 1 }}
+                          onClick={() => setDeleteConfirm(false)}
+                        >
+                          {currentLang === 'en' ? 'Cancel' : 'Отмена'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button 
+                      className="form-button" 
+                      style={{ backgroundColor: '#d9534f', color: 'white', width: '100%' }}
+                      onClick={handleDeleteAccount}
+                    >
+                      {currentLang === 'en' ? 'Delete Account' : 'Удалить аккаунт'}
+                    </button>
                   )}
                   
-                  {/* Truncate User Data Section - always visible for all users */}
+                  {/* Truncate User Data Section */}
                   <div style={{ marginTop: '20px' }}>
                     {truncateConfirm ? (
                       <div className="truncate-confirm">
@@ -1172,20 +1106,84 @@ const HomePage = () => {
           </div>
         )}
         
-        <div className="buttons-container">
-          <button className="game-button" onClick={() => navigate(`/${currentLang}/game`)}>{currentLang === 'en' ? 'Continue' : 'Продолжить'}</button>
-          <button className="game-button" onClick={handleNewGame} disabled={newGameLoading}>
-            {newGameLoading ? (currentLang === 'ru' ? 'Загрузка...' : 'Loading...') : t.newGame}
-          </button>
-          
-          <button className="game-button" onClick={handleMyAccountClick}>{t.myAccount}</button>
-          
-          <button className="game-button" onClick={handleSavesClick}>{t.saves}</button>
-          <button className="game-button" onClick={handleHelpClick}>{t.help}</button>
-          <button className="game-button" onClick={handleContactsClick}>{t.contacts}</button>
-        </div>
-        
-
+        {/* Show different content based on authentication status */}
+        {!isAuthenticated ? (
+          /* Unauthenticated users - show only login/register options */
+          <div className="auth-buttons-container">
+            <p className="auth-prompt">
+              {currentLang === 'en' 
+                ? 'Please log in or create an account to start playing' 
+                : 'Пожалуйста, войдите в систему или создайте аккаунт, чтобы начать играть'}
+            </p>
+            <div className="buttons-container">
+              <button className="game-button" onClick={handleShowLoginForm}>
+                {currentLang === 'en' ? 'Login' : 'Войти'}
+              </button>
+              <button className="game-button" onClick={handleShowRegisterForm}>
+                {currentLang === 'en' ? 'Register' : 'Зарегистрироваться'}
+              </button>
+            </div>
+          </div>
+        ) : loadingUserData ? (
+          /* Loading user data */
+          <div className="loading-container">
+            <p>{currentLang === 'en' ? 'Loading user data...' : 'Загрузка данных пользователя...'}</p>
+          </div>
+        ) : userData ? (
+          /* Authenticated users - show full game interface */
+          <div className="authenticated-content">
+            <div className="user-welcome" style={{ marginBottom: '20px', padding: '15px', backgroundColor: 'rgba(0, 100, 0, 0.7)', color: 'white', borderRadius: '5px', textAlign: 'center' }}>
+              <h2 style={{ margin: '0 0 10px 0' }}>
+                {currentLang === 'en' 
+                  ? `Welcome back, ${userData.name || 'Player'}!` 
+                  : `Добро пожаловать, ${userData.name || 'Игрок'}!`}
+              </h2>
+              {userData.user_biography_name && (
+                <p style={{ margin: '0', fontSize: '1.2em' }}>
+                  {currentLang === 'en' ? 'Playing as: ' : 'Играете за: '}
+                  <strong>
+                    {currentLang === 'ru' && userData.user_biography_russian_name 
+                      ? userData.user_biography_russian_name 
+                      : userData.user_biography_name}
+                  </strong>
+                </p>
+              )}
+            </div>
+            
+            <div className="buttons-container">
+              <button className="game-button" onClick={() => navigate(`/${currentLang}/game`)}>
+                {currentLang === 'en' ? 'Continue' : 'Продолжить'}
+              </button>
+              <button className="game-button" onClick={handleNewGame} disabled={newGameLoading}>
+                {newGameLoading ? (currentLang === 'ru' ? 'Загрузка...' : 'Loading...') : t.newGame}
+              </button>
+              
+              <button className="game-button" onClick={handleMyAccountClick}>{t.myAccount}</button>
+              
+              <button className="game-button" onClick={handleSavesClick}>{t.saves}</button>
+              <button className="game-button" onClick={handleHelpClick}>{t.help}</button>
+              <button className="game-button" onClick={handleContactsClick}>{t.contacts}</button>
+              
+              <button className="game-button" onClick={handleLogout} style={{ backgroundColor: '#4a6da7', marginTop: '10px' }}>
+                {currentLang === 'en' ? 'Logout' : 'Выйти'}
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Error state */
+          <div className="error-container">
+            <p style={{ color: '#d9534f' }}>
+              {currentLang === 'en' 
+                ? 'Failed to load user data. Please try logging in again.' 
+                : 'Не удалось загрузить данные пользователя. Пожалуйста, попробуйте войти снова.'}
+            </p>
+            <div className="buttons-container">
+              <button className="game-button" onClick={handleShowLoginForm}>
+                {currentLang === 'en' ? 'Login' : 'Войти'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

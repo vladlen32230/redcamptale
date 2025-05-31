@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Body
 from src.schemas.api.user import UserPost, JWT, JWTPayload, UserPut
 from fastapi.security import OAuth2PasswordRequestForm
 from src.auxiliary.config import SECRET_KEY, ALGORITHM, pwd_context
-from src.auxiliary.dependencies import get_current_user, get_client_ip
+from src.auxiliary.dependencies import get_current_user
 from src.db import get_session
 from src.schemas.database import User
 import jwt
@@ -10,6 +10,8 @@ from src.classifier.translator import translator
 from sqlmodel import select
 from src.auxiliary.database import delete_user, truncate_user
 from src.schemas.other import Language
+from src.schemas.states.characters import Character
+
 user_router = APIRouter(tags=["user"])
 
 @user_router.post(
@@ -21,8 +23,7 @@ user_router = APIRouter(tags=["user"])
     }
 )
 async def create_user(
-    user_post: UserPost, 
-    client_ip: str | None = Depends(get_client_ip)
+    user_post: UserPost
 ):
     """
     Creates a new user. IP address will be set to none if user is already in database with this IP.
@@ -38,8 +39,16 @@ async def create_user(
         russian_name = None
         russian_description = None
     elif user_post.language == Language.RUSSIAN:
-        name, _, __ = await translator.translate_ru_to_en(user_post.game_name)
-        description, _, __ = await translator.translate_ru_to_en(user_post.game_biography)
+        name, _, __ = await translator.translate_ru_to_en(
+            user_post.game_name,
+            character=Character.MAIN_CHARACTER,
+            use_premium=True
+        )
+        description, _, __ = await translator.translate_ru_to_en(
+            user_post.game_biography,
+            character=Character.MAIN_CHARACTER,
+            use_premium=True
+        )
         russian_name = user_post.game_name
         russian_description = user_post.game_biography
     
@@ -62,24 +71,6 @@ async def create_user(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="User with this name already exists"
             )
-            
-        # Check if user with same IP already exists
-        if client_ip:
-            existing_ip_user = session.exec(select(User).filter(User.ip_address == client_ip)).first()
-
-            if existing_ip_user:
-                # Update the existing user with new fields from POST data
-                existing_ip_user.name = user_post.name
-                existing_ip_user.password = hashed_password
-                existing_ip_user.user_biography_name = name
-                existing_ip_user.user_biography_description = description
-                existing_ip_user.user_biography_russian_name = russian_name
-                existing_ip_user.user_biography_russian_description = russian_description
-                existing_ip_user.ip_address = None
-
-                # Add the updated user to the session
-                session.add(existing_ip_user)
-                return
 
         # Add user to database
         session.add(new_user)
@@ -129,15 +120,12 @@ async def login_user(
     }
 )
 async def update_user(
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     user_put: UserPut = Body(...)
 ):
     """
     Update the current user account. Requires authentication.
     """
-    if user is None:
-        raise HTTPException(400)
-    
     if user_put.language == Language.ENGLISH:
         name = user_put.game_name
         description = user_put.game_biography
@@ -145,8 +133,16 @@ async def update_user(
         russian_name = None
         russian_description = None
     elif user_put.language == Language.RUSSIAN:
-        name, _, __ = await translator.translate_ru_to_en(user_put.game_name)
-        description, _, __ = await translator.translate_ru_to_en(user_put.game_biography)
+        name, _, __ = await translator.translate_ru_to_en(
+            user_put.game_name,
+            character=Character.MAIN_CHARACTER, 
+            use_premium=True
+        )
+        description, _, __ = await translator.translate_ru_to_en(
+            user_put.game_biography,
+            character=Character.MAIN_CHARACTER,
+            use_premium=True
+        )
 
         russian_name = user_put.game_name
         russian_description = user_put.game_biography
@@ -169,21 +165,16 @@ async def update_user(
     "/user",
     response_model=None,
     status_code=204,
-    responses={}
+    responses={
+        401: {'description': 'Unauthorized'}
+    }
 )
 async def delete_user_endpoint(
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Delete the current user account. Requires authentication.
     """
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
     delete_user(user)
 
 
@@ -191,18 +182,13 @@ async def delete_user_endpoint(
     "/user/me",
     response_model=User,
     status_code=200,
-    responses={}
+    responses={
+        401: {'description': 'Unauthorized'}
+    }
 )
 async def get_current_user_endpoint(
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
     return user.model_dump(exclude={"password"})
 
 
@@ -210,16 +196,11 @@ async def get_current_user_endpoint(
     "/user/truncate",
     response_model=None,
     status_code=204,
-    responses={}
+    responses={
+        401: {'description': 'Unauthorized'}
+    }
 )
 async def truncate_user_endpoint(
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
     truncate_user(user)

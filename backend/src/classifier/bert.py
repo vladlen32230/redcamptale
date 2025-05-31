@@ -1,7 +1,6 @@
 import onnxruntime as ort
 import numpy as np
-from transformers import AutoTokenizer
-from scipy.special import softmax
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from src.schemas.database import Message, CharacterSprite
 from src.schemas.states.characters import Character
 from src.schemas.states.music import Music
@@ -10,77 +9,121 @@ from src.auxiliary.state import valid_character_poses, valid_character_expressio
 from src.schemas.states.entities.base import Clothes
 from src.auxiliary.helper import str_to_enum
 import logging
+import os
+import torch
+import io
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class DistilBertClassifier:
+class Classifier:
     _instance = None
     
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(DistilBertClassifier, cls).__new__(cls)
+            cls._instance = super(Classifier, cls).__new__(cls)
             cls._instance.initialized = False
         return cls._instance
     
     def __init__(self):
         if not self.initialized:
-            self.speaker_session = None
-            self.sprite_session = None
-            self.speaker_tokenizer = None
-            self.sprite_tokenizer = None
+            self.session = None
+            self.tokenizer = None
             self.initialized = True
     
     def load_model(self):
         """
-        Load the quantized ONNX models and tokenizers for different tasks
+        Load the model using transformers and convert to ONNX in memory for inference
         """
         
-        speaker_model_path = "models_cache/speaker_quantized/onnx_model/model.onnx"
-        sprite_model_path = "models_cache/sprite_quantized/onnx_model/model.onnx"
+        # Model name for tokenizer and model
+        model_name = os.environ["STANDARD_CLASSIFIER_NAME"]
         
-        # Model names for tokenizers
-        speaker_model_name = "MoritzLaurer/deberta-v3-large-zeroshot-v1.1-all-33"
-        sprite_model_name = "MoritzLaurer/deberta-v3-large-zeroshot-v1.1-all-33"
+        logger.info(f"Loading model from transformers: {model_name}")
+        
+        # Load tokenizer and model from transformers
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        model = AutoModelForSequenceClassification.from_pretrained(model_name)
+        
+        # Set model to evaluation mode
+        model.eval()
+        
+        # Create dummy inputs for export (premise-hypothesis pair)
+        premise = "This is a sample premise text for ONNX export."
+        hypothesis = "This is about exporting models."
+
+        inputs = self.tokenizer(
+            premise,
+            hypothesis,
+            return_tensors="pt",
+            max_length=512,
+            padding="max_length",
+            truncation=True
+        )
+        
+        logger.info("Converting model to ONNX format in memory...")
+        
+        # Create a BytesIO buffer to hold the ONNX model in memory
+        onnx_buffer = io.BytesIO()
+        
+        # Extract input names and create dynamic axes
+        input_names = ['input_ids', 'attention_mask', 'token_type_ids']
+        
+        # Create inputs tuple in the same order as input_names
+        export_inputs = (inputs['input_ids'], inputs['attention_mask'], inputs['token_type_ids'])
+        
+        dynamic_axes = {
+            name: {0: "batch_size", 1: "sequence_length"} 
+            for name in input_names
+        }
+        dynamic_axes["logits"] = {0: "batch_size"}
+        
+        # Export to ONNX with higher opset version for better compatibility
+        with torch.no_grad():
+            torch.onnx.export(
+                model,
+                export_inputs,
+                onnx_buffer,
+                input_names=input_names,
+                output_names=["logits"],
+                dynamic_axes=dynamic_axes,
+                do_constant_folding=True,
+                opset_version=14,  # Higher opset version for better DeBERTa support
+                export_params=True,
+                verbose=False
+            )
+        
+        # Get the ONNX model bytes
+        onnx_model_bytes = onnx_buffer.getvalue()
         
         # Configure ONNX Runtime for CPU with optimizations
         providers = ['CPUExecutionProvider']
         session_options = ort.SessionOptions()
         session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-        session_options.intra_op_num_threads = 4
+        session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL  # Better for CPU
+        session_options.intra_op_num_threads = 2
         session_options.inter_op_num_threads = 1
         
-        # Load speaker model
-        logger.info(f"Loading quantized speaker prediction model: {speaker_model_path}")
-        self.speaker_session = ort.InferenceSession(
-            speaker_model_path, 
+        # Load ONNX model from memory
+        logger.info("Loading ONNX model from memory...")
+        self.session = ort.InferenceSession(
+            onnx_model_bytes, 
             sess_options=session_options,
             providers=providers
         )
-        self.speaker_tokenizer = AutoTokenizer.from_pretrained(speaker_model_name)
         
-        # Load sprite model
-        logger.info(f"Loading quantized sprite prediction model: {sprite_model_path}")
-        self.sprite_session = ort.InferenceSession(
-            sprite_model_path,
-            sess_options=session_options, 
-            providers=providers
-        )
-        self.sprite_tokenizer = AutoTokenizer.from_pretrained(sprite_model_name)
-        
-        logger.info("All quantized ONNX models loaded successfully!")
+        logger.info("Model loaded and converted to ONNX successfully!")
 
     def _onnx_zero_shot_classification(self, session, tokenizer, text, candidate_labels, hypothesis_template):
         """Perform zero-shot classification using ONNX model"""
         # Create premise-hypothesis pairs
         pairs = [(text, hypothesis_template.format(label)) for label in candidate_labels]
         
-        # Tokenize
         batch_inputs = tokenizer(
-            pairs, padding=True, truncation=True, max_length=512, return_tensors="np"
+            pairs, padding=True, truncation=True, max_length=256, return_tensors="np"
         )
-        
+
         ort_inputs = {
             'input_ids': batch_inputs['input_ids'].astype(np.int64),
             'attention_mask': batch_inputs['attention_mask'].astype(np.int64)
@@ -90,33 +133,35 @@ class DistilBertClassifier:
         logits = session.run(None, ort_inputs)[0]
         entailment_scores = logits[:, 0]
 
-        # Get probabilities and sort results
-        probs = softmax(entailment_scores)
-        sorted_indices = np.argsort(probs)[::-1]
+        sorted_indices = np.argsort(entailment_scores)[::-1]
         
         return {
             'labels': [candidate_labels[i] for i in sorted_indices],
-            'scores': [float(probs[i]) for i in sorted_indices]
+            'scores': [float(entailment_scores[i]) for i in sorted_indices]
         }
 
-    def _convert_messages_to_string(self, messages: list[Message]) -> str:
-        return "\n[SEP]\n".join(f"{message.character}: {message.english_text}" for message in messages)
+    def _convert_messages_to_string(self, messages: list[Message], include_character_name: bool = True) -> str:
+        return "\n".join(
+            f"{message.character}: {message.english_text}" 
+            if include_character_name else 
+            message.english_text for message in messages
+        )
 
     def determine_next_speaking_character(
         self,
         messages: list[Message], 
         characters: list[Character]
     ) -> Character:
-        history = self._convert_messages_to_string(reversed(messages)) + "\n[SEP]\n"
+        history = self._convert_messages_to_string(reversed(messages), include_character_name=False)
         if len(characters) == 1:
             return characters[0]
 
         candidate_labels = [character.value for character in characters]
-        hypothesis_template = "The character {} is mentioned in the dialogue."
-        
+        hypothesis_template = "The next person to speak is {}."
+
         result = self._onnx_zero_shot_classification(
-            self.speaker_session, 
-            self.speaker_tokenizer,
+            self.session, 
+            self.tokenizer,
             history,
             candidate_labels,
             hypothesis_template
@@ -139,14 +184,12 @@ class DistilBertClassifier:
         hypothesis_template = f"The {chracter_name} mood based on his response is {{}}"
         
         result = self._onnx_zero_shot_classification(
-            self.speaker_session,
-            self.speaker_tokenizer,
+            self.session,
+            self.tokenizer,
             history,
             poses_descriptions,
             hypothesis_template
         )
-
-        print(result)
 
         i = poses_descriptions.index(result['labels'][0])
         character_pose = character_poses[i]
@@ -158,8 +201,8 @@ class DistilBertClassifier:
         hypothesis_template = f"The {chracter_name} face expression based on response is {{}}"
         
         result = self._onnx_zero_shot_classification(
-            self.sprite_session,
-            self.sprite_tokenizer,
+            self.session,
+            self.tokenizer,
             history,
             face_expressions_descriptions,
             hypothesis_template
@@ -187,8 +230,8 @@ class DistilBertClassifier:
         hypothesis_template = f"The {character} {{}} {user_character_name} whether he wants to go."
         
         result = self._onnx_zero_shot_classification(
-            self.speaker_session,
-            self.speaker_tokenizer,
+            self.session,
+            self.tokenizer,
             history,
             candidate_labels,
             hypothesis_template
@@ -215,8 +258,8 @@ class DistilBertClassifier:
         hypothesis_template = "Mood of conversation is {}"
         
         result = self._onnx_zero_shot_classification(
-            self.sprite_session,
-            self.sprite_tokenizer,
+            self.session,
+            self.tokenizer,
             history,
             music_descriptions,
             hypothesis_template
@@ -235,4 +278,4 @@ class DistilBertClassifier:
         return music
 
 # Create a singleton instance
-classifier = DistilBertClassifier()
+classifier = Classifier()

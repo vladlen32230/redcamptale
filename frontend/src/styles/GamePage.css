@@ -217,7 +217,7 @@ html, body {
   border-radius: 5px;
   border: 1px solid #006400;
   background-color: rgba(255, 255, 255, 0.9);
-  font-size: 0.8rem;
+  font-size: 1rem;
 }
 
 .send-button {

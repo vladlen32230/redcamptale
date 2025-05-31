@@ -10,7 +10,7 @@ from src.schemas.other import Language
 from src.schemas.states.locations import Location
 from src.auxiliary.dependencies import get_current_user
 from src.db import get_session
-from src.schemas.database import User, GameState, Environment, MapState, Message
+from src.schemas.database import User, GameState, Environment, MapState, Message, SubscriptionTier
 from sqlmodel import select
 from src.schemas.states.times import Time
 from src.auxiliary.helper import str_to_enum
@@ -55,17 +55,17 @@ game_state_router = APIRouter(tags=["game_state"])
     "/game_state/continue",
     response_model=GameStateInterface,
     status_code=200,
-    responses={}
+    responses={
+        401: {'description': 'Unauthorized'}
+    }
 )
 async def continue_game(
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Continue the game.
     It will return game state with updated state.
     """
-    if user is None:
-        raise HTTPException(400)
     with get_session() as session:
         if user.last_game_state_id is None:
             return create_new_game(user)
@@ -91,14 +91,13 @@ async def continue_game(
     "/game_state/new",
     response_model=GameStateInterface,
     status_code=200,
-    responses={}
+    responses={
+        401: {'description': 'Unauthorized'}
+    }
 )
 async def start_new_game(
-    user: User | None = Depends(get_current_user)
-):
-    if user is None:
-        raise HTTPException(400)
-    
+    user: User = Depends(get_current_user)
+):  
     last_game_state = get_user_game_state_by_id(user.last_game_state_id, user)
     if last_game_state is not None:
         change_previous_game_state_links(last_game_state, change=-1)
@@ -120,7 +119,7 @@ async def start_new_game(
 async def interaction(
     interaction_post: InteractionPost,
     game_state_id: int,
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Interaction with the game state.
@@ -129,6 +128,8 @@ async def interaction(
     It will use text generation and classification methods to determine
     next speaking character, his message, translating to russian, changing music and character sprites.
     """
+    use_premium = user.subscription_tier == SubscriptionTier.PREMIUM.value
+
     translation_input_tokens = 0
     translation_output_tokens = 0
     translation_queries = 0
@@ -167,7 +168,11 @@ async def interaction(
                 english_text = interaction_post.user_text
                 russian_text = interaction_post.user_text
             elif interaction_post.language == Language.RUSSIAN:
-                english_text, input_tokens, output_tokens = await translator.translate_ru_to_en(interaction_post.user_text)
+                english_text, input_tokens, output_tokens = await translator.translate_ru_to_en(
+                    interaction_post.user_text,
+                    Character.MAIN_CHARACTER,
+                    use_premium=use_premium
+                )
 
                 translation_input_tokens += input_tokens
                 translation_output_tokens += output_tokens
@@ -228,6 +233,7 @@ async def interaction(
 
         classifiying_messages = messages[:1]
 
+        # DETERMINE NEXT SPEAKER
         next_character = classifier.determine_next_speaking_character(
             messages=classifiying_messages,
             characters=character_names
@@ -257,7 +263,8 @@ async def interaction(
             biography_of_main_character=user.user_biography_description,
             clothes=str_to_enum(clothes, [UlyanaClothes, AliceClothes, SlavyaClothes, LenaClothes, MikuClothes]),
             previous_history="\n\n".join(character_history),
-            messages=messages
+            messages=messages,
+            use_premium=use_premium
         )
 
         interaction_input_tokens += input_tokens
@@ -266,7 +273,11 @@ async def interaction(
 
         russian_translation_message = None
         if interaction_post.language == Language.RUSSIAN:
-            russian_translation_message, input_tokens, output_tokens = await translator.translate_en_to_ru(character_message)
+            russian_translation_message, input_tokens, output_tokens = await translator.translate_en_to_ru(
+                character_message,
+                next_character,
+                use_premium=use_premium
+            )
 
             translation_input_tokens += input_tokens
             translation_output_tokens += output_tokens
@@ -366,7 +377,7 @@ async def interaction(
 )
 async def get_game_state(
     game_state_id: int,
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Get game state by id.
@@ -410,16 +421,14 @@ async def get_game_state(
 async def change_location(
     game_state_id: int,
     new_location: Location = Body(..., embed=True),
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Changes the location.
     It will create new environment and game state.
     Map state will be new only if there is characters that followed user.
     """
-    if user is None:
-        raise HTTPException(400)
-
+    use_premium = user.subscription_tier == SubscriptionTier.PREMIUM.value
     game_state = get_user_game_state_by_id(game_state_id, user)
 
     if game_state is None:
@@ -464,7 +473,10 @@ async def change_location(
             new_map_state_id = map_state.id
 
         if messages and game_state.characters:
-            previous_environment_summary, input_tokens, output_tokens = await get_summary_of_messages(messages)
+            previous_environment_summary, input_tokens, output_tokens = await get_summary_of_messages(
+                messages=messages,
+                use_premium=use_premium
+            )
             increase_user_daily_usage(
                 user=user,
                 summarization_input_tokens=input_tokens,
@@ -520,28 +532,30 @@ async def change_location(
     response_model=GameStateInterface,
     status_code=200,
     responses={
+        401: {'description': 'Unauthorized'},
         404: {'description': 'Game state not found'}
     }
 )
 async def change_map(
     game_state_id: int,
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Changes the map.
     There will be new characters' positions and next time.
     Game state will be created.
     """
-    if user is None:
-        raise HTTPException(400)
-
+    use_premium = user.subscription_tier == SubscriptionTier.PREMIUM.value
     game_state = get_user_game_state_by_id(game_state_id, user)
     messages = get_messages_of_game_state(game_state)
     environment = get_environment_by_game_state(game_state)
     map_state = get_map_state_by_game_state(game_state)
 
     if messages and game_state.characters:
-        previous_environment_summary, input_tokens, output_tokens = await get_summary_of_messages(messages)
+        previous_environment_summary, input_tokens, output_tokens = await get_summary_of_messages(
+            messages=messages,
+            use_premium=use_premium
+        )
         increase_user_daily_usage(
             user=user,
             summarization_input_tokens=input_tokens,
@@ -616,15 +630,12 @@ async def change_map(
 )
 async def get_map(
     game_state_id: int,
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Get current map.
     It will have time and characters' positions.
     """
-    if user is None:
-        raise HTTPException(400)
-
     with get_session() as session:
         game_state = get_user_game_state_by_id(game_state_id, user)
 
@@ -647,7 +658,7 @@ async def get_map(
 )
 async def get_messages(
     game_state_id: int,
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     offset: int = 0,
     limit: int = 10
 ):

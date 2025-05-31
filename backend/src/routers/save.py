@@ -14,20 +14,20 @@ save_router = APIRouter(tags=["save"])
     "/save",
     response_model=Save,
     status_code=201,
-    responses={404: {'description': 'Game state of this user is not found'}}
+    responses={
+        401: {'description': 'Unauthorized'},
+        404: {'description': 'Game state of this user is not found'}
+    }
 )
 async def create_save(
     save_post: SavePost,
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Creates a database entry for a save. 
     Recursively increases links count for previous game states and current.
     Points to game id, which can be loaded later.
     """
-    if user is None:
-        raise HTTPException(400)
-
     game_state = get_user_game_state_by_id(save_post.game_state_id, user)
     if game_state is None:
         raise HTTPException(404)
@@ -52,10 +52,12 @@ async def create_save(
     "/saves",
     response_model=list[Save],
     status_code=200,
-    responses={}
+    responses={
+        401: {'description': 'Unauthorized'}
+    }
 )
 async def get_saves(
-    user: User | None = Depends(get_current_user),
+    user: User = Depends(get_current_user),
     offset: int = 0,
     limit: int = 10
 ):
@@ -83,7 +85,7 @@ async def get_saves(
 async def update_save(
     save_id: int,
     save_put: SavePut,
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Updates description of the save.
@@ -111,12 +113,12 @@ async def update_save(
     status_code=204,
     responses={
         401: {'description': 'Unauthorized'},
-        404: {'description': 'Game state not found'}
+        404: {'description': 'Save not found'}
     }
 )
 async def delete_save(
     save_id: int,
-    user: User | None = Depends(get_current_user)
+    user: User = Depends(get_current_user)
 ):
     """
     Deletes a save. Decreases links count for previous game states and current.
