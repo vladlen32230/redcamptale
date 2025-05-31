@@ -33,11 +33,22 @@ class UserDailyUsage(SQLModel, table=True):
     summarization_output_tokens: int = SQLModelField(default=0)
     summarization_queries: int = SQLModelField(default=0)
 
+    premium_interaction_input_tokens: int = SQLModelField(default=0)
+    premium_interaction_output_tokens: int = SQLModelField(default=0)
+    premium_interaction_queries: int = SQLModelField(default=0)
+
+    premium_summarization_input_tokens: int = SQLModelField(default=0)
+    premium_summarization_output_tokens: int = SQLModelField(default=0)
+    premium_summarization_queries: int = SQLModelField(default=0)
+
+    premium_translation_input_tokens: int = SQLModelField(default=0)
+    premium_translation_output_tokens: int = SQLModelField(default=0)
+    premium_translation_queries: int = SQLModelField(default=0)
+
 class User(SQLModel, table=True):
     __tablename__ = "users"
 
     id: int | None = SQLModelField(default=None, primary_key=True)
-    ip_address: str | None
 
     name: str | None = SQLModelField(unique=True)
     password: str | None

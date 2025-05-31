@@ -23,6 +23,7 @@ async def get_summary_of_messages(messages: list[Message], use_premium=False) ->
                 {"role": "user", "content": interaction}
             ],
             top_p=0.95,
+            max_completion_tokens=512
         )
     else:
         summary = await llm_client.chat.completions.create(
@@ -32,6 +33,7 @@ async def get_summary_of_messages(messages: list[Message], use_premium=False) ->
                 {"role": "user", "content": interaction}
             ],
             top_p=0.95,
+            max_completion_tokens=512
         )
 
     result_text = summary.choices[0].message.content
@@ -89,9 +91,9 @@ async def get_character_message(
             messages=[
                 {"role": "system", "content": system_prompt},
             ],
-            top_p=0.95,
-            frequency_penalty=1.1,
-            temperature=1.1
+            top_p=0.9,
+            temperature=1.1,
+            max_completion_tokens=256
         )
     else:
         response = await llm_client.chat.completions.create(
@@ -101,7 +103,8 @@ async def get_character_message(
             ],
             top_p=0.95,
             frequency_penalty=1.1,
-            temperature=1.1
+            temperature=1.1,
+            max_completion_tokens=256,
         )
 
     result_text = response.choices[0].message.content

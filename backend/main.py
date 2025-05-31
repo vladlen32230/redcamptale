@@ -13,17 +13,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.classifier.bert import classifier as bert_classifier
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Create database tables
-    SQLModel.metadata.create_all(engine)
-    
-    # Load the DistilBERT classifier
+async def lifespan(app: FastAPI):    
     bert_classifier.load_model()
 
-    
     yield
-    
-    # Cleanup operations can be added here if needed
 
 app = FastAPI(lifespan=lifespan, root_path="/api/v1")
 

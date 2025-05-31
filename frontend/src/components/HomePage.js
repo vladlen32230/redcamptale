@@ -4,7 +4,8 @@ import translations from '../translations';
 import '../styles/HomePage.css';
 
 // Backend URL configuration
-const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
+// const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
+const BACKEND_URL = 'http://192.168.0.12:8080';
 
 const HomePage = () => {
   // Authentication state - determined by JWT in localStorage
@@ -875,6 +876,35 @@ const HomePage = () => {
                 <div className="account-info">
                   <h3>{currentLang === 'en' ? 'Account Information' : 'Информация об аккаунте'}</h3>
                   <p style={{ fontSize: '2rem' }}><strong>{currentLang === 'en' ? 'Username' : 'Имя пользователя'}:</strong> {userData.name}</p>
+                  
+                  {/* Subscription Information */}
+                  <div className="subscription-info" style={{ marginTop: '15px', padding: '10px', backgroundColor: userData.subscription_tier === 'premium' ? 'rgba(255, 215, 0, 0.2)' : 'rgba(128, 128, 128, 0.2)', borderRadius: '5px' }}>
+                    <p style={{ fontSize: '1.8rem', margin: '5px 0' }}>
+                      <strong>{currentLang === 'en' ? 'Subscription' : 'Подписка'}:</strong> 
+                      <span style={{ 
+                        color: userData.subscription_tier === 'premium' ? '#FFD700' : '#666',
+                        fontWeight: 'bold',
+                        marginLeft: '10px',
+                        textTransform: 'uppercase'
+                      }}>
+                        {userData.subscription_tier === 'premium' 
+                          ? (currentLang === 'en' ? 'PREMIUM' : 'ПРЕМИУМ')
+                          : (currentLang === 'en' ? 'FREE' : 'БЕСПЛАТНАЯ')}
+                      </span>
+                    </p>
+                    
+                    {userData.subscription_tier === 'premium' && userData.subscription_ends_at && (
+                      <p style={{ fontSize: '1.4rem', margin: '5px 0', color: '#666' }}>
+                        {currentLang === 'en' ? 'Expires' : 'Истекает'}: {new Date(userData.subscription_ends_at).toLocaleDateString(currentLang === 'ru' ? 'ru-RU' : 'en-US')}
+                      </p>
+                    )}
+                    
+                    {userData.subscription_tier === 'premium' && userData.subscription_started_at && (
+                      <p style={{ fontSize: '1.4rem', margin: '5px 0', color: '#666' }}>
+                        {currentLang === 'en' ? 'Started' : 'Начата'}: {new Date(userData.subscription_started_at).toLocaleDateString(currentLang === 'ru' ? 'ru-RU' : 'en-US')}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 
                 <div className="character-info">

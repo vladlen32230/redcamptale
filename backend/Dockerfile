@@ -10,9 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 
 # Install all dependencies including PyTorch and ONNX in one step
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir optimum onnxruntime onnx
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+RUN pip install --no-cache-dir optimum onnxruntime onnx
 
 # Copy source code
 COPY main.py .

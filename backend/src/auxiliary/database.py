@@ -1,4 +1,4 @@
-from src.schemas.database import Message, GameState, User, MapState, Environment, UserDailyUsage
+from src.schemas.database import Message, GameState, User, MapState, Environment, UserDailyUsage, SubscriptionTier
 from src.db import get_session
 from sqlmodel import select, delete
 from sqlalchemy import text, desc
@@ -442,6 +442,7 @@ def delete_previous_game_states_with_0_links(game_state: GameState) -> None:
 
 def increase_user_daily_usage(
     user: User, 
+
     interaction_input_tokens: int = 0, 
     interaction_output_tokens: int = 0, 
     interaction_queries: int = 0,
@@ -452,7 +453,19 @@ def increase_user_daily_usage(
 
     summarization_input_tokens: int = 0,
     summarization_output_tokens: int = 0,
-    summarization_queries: int = 0
+    summarization_queries: int = 0,
+
+    premium_interaction_input_tokens: int = 0,
+    premium_interaction_output_tokens: int = 0,
+    premium_interaction_queries: int = 0,
+
+    premium_translation_input_tokens: int = 0,
+    premium_translation_output_tokens: int = 0,
+    premium_translation_queries: int = 0,
+
+    premium_summarization_input_tokens: int = 0,
+    premium_summarization_output_tokens: int = 0,
+    premium_summarization_queries: int = 0,
 ) -> None:
     with get_session() as session:
         # Get today's date in UTC
@@ -478,7 +491,16 @@ def increase_user_daily_usage(
                 translation_queries=translation_queries,
                 summarization_input_tokens=summarization_input_tokens,
                 summarization_output_tokens=summarization_output_tokens,
-                summarization_queries=summarization_queries
+                summarization_queries=summarization_queries,
+                premium_interaction_input_tokens=premium_interaction_input_tokens,
+                premium_interaction_output_tokens=premium_interaction_output_tokens,
+                premium_interaction_queries=premium_interaction_queries,
+                premium_translation_input_tokens=premium_translation_input_tokens,
+                premium_translation_output_tokens=premium_translation_output_tokens,
+                premium_translation_queries=premium_translation_queries,
+                premium_summarization_input_tokens=premium_summarization_input_tokens,
+                premium_summarization_output_tokens=premium_summarization_output_tokens,
+                premium_summarization_queries=premium_summarization_queries
             )
         else:
             # Update existing record
@@ -491,5 +513,36 @@ def increase_user_daily_usage(
             daily_usage.summarization_input_tokens += summarization_input_tokens
             daily_usage.summarization_output_tokens += summarization_output_tokens
             daily_usage.summarization_queries += summarization_queries
+            daily_usage.premium_interaction_input_tokens += premium_interaction_input_tokens
+            daily_usage.premium_interaction_output_tokens += premium_interaction_output_tokens
+            daily_usage.premium_interaction_queries += premium_interaction_queries
+            daily_usage.premium_translation_input_tokens += premium_translation_input_tokens
+            daily_usage.premium_translation_output_tokens += premium_translation_output_tokens
+            daily_usage.premium_translation_queries += premium_translation_queries
+            daily_usage.premium_summarization_input_tokens += premium_summarization_input_tokens
+            daily_usage.premium_summarization_output_tokens += premium_summarization_output_tokens
+            daily_usage.premium_summarization_queries += premium_summarization_queries
         # Save the record
         session.add(daily_usage)
+
+
+def check_user_premium_status(user: User) -> bool:
+    if (
+        user.subscription_tier == SubscriptionTier.PREMIUM and 
+        user.subscription_ends_at is not None and 
+        user.subscription_ends_at.replace(tzinfo=UTC) >= datetime.now(UTC)
+    ):
+        return True
+    
+    if user.subscription_tier == SubscriptionTier.PREMIUM:
+        with get_session() as session:
+            user.subscription_tier = SubscriptionTier.FREE
+            user.subscription_ends_at = None
+            user.subscription_started_at = None
+
+            session.add(user)
+            session.flush()
+            session.refresh(user)
+            session.expunge_all()
+
+    return False

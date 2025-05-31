@@ -35,6 +35,7 @@ class Translator:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0,
+                max_completion_tokens=512
             )
         else:
             response = await llm_client.chat.completions.create(
@@ -50,6 +51,7 @@ class Translator:
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0,
+                max_completion_tokens=512
             )
 
         translation = response.choices[0].message.content.strip()

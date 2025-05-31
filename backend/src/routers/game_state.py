@@ -46,7 +46,8 @@ from src.auxiliary.database import (
     get_user_current_game_state,
     get_previous_history_summaries,
     delete_previous_game_states_with_0_links,
-    increase_user_daily_usage
+    increase_user_daily_usage,
+    check_user_premium_status
 )
 
 game_state_router = APIRouter(tags=["game_state"])
@@ -128,7 +129,7 @@ async def interaction(
     It will use text generation and classification methods to determine
     next speaking character, his message, translating to russian, changing music and character sprites.
     """
-    use_premium = user.subscription_tier == SubscriptionTier.PREMIUM.value
+    use_premium = check_user_premium_status(user)
 
     translation_input_tokens = 0
     translation_output_tokens = 0
@@ -137,6 +138,14 @@ async def interaction(
     interaction_input_tokens = 0
     interaction_output_tokens = 0
     interaction_queries = 0
+
+    premium_interaction_input_tokens = 0
+    premium_interaction_output_tokens = 0
+    premium_interaction_queries = 0
+
+    premium_translation_input_tokens = 0
+    premium_translation_output_tokens = 0
+    premium_translation_queries = 0
 
     game_state = get_user_game_state_by_id(game_state_id, user)
 
@@ -174,9 +183,14 @@ async def interaction(
                     use_premium=use_premium
                 )
 
-                translation_input_tokens += input_tokens
-                translation_output_tokens += output_tokens
-                translation_queries += 1
+                if use_premium:
+                    premium_translation_input_tokens += input_tokens
+                    premium_translation_output_tokens += output_tokens
+                    premium_translation_queries += 1
+                else:
+                    translation_input_tokens += input_tokens
+                    translation_output_tokens += output_tokens
+                    translation_queries += 1
 
                 russian_text = interaction_post.user_text
             else:
@@ -267,9 +281,14 @@ async def interaction(
             use_premium=use_premium
         )
 
-        interaction_input_tokens += input_tokens
-        interaction_output_tokens += output_tokens
-        interaction_queries += 1
+        if use_premium:
+            premium_interaction_input_tokens += input_tokens
+            premium_interaction_output_tokens += output_tokens
+            premium_interaction_queries += 1
+        else:
+            interaction_input_tokens += input_tokens
+            interaction_output_tokens += output_tokens
+            interaction_queries += 1
 
         russian_translation_message = None
         if interaction_post.language == Language.RUSSIAN:
@@ -279,9 +298,14 @@ async def interaction(
                 use_premium=use_premium
             )
 
-            translation_input_tokens += input_tokens
-            translation_output_tokens += output_tokens
-            translation_queries += 1
+            if use_premium:
+                premium_translation_input_tokens += input_tokens
+                premium_translation_output_tokens += output_tokens
+                premium_translation_queries += 1
+            else:
+                translation_input_tokens += input_tokens
+                translation_output_tokens += output_tokens
+                translation_queries += 1
 
         new_message = Message(
             character=next_character,
@@ -353,7 +377,13 @@ async def interaction(
             interaction_queries=interaction_queries,
             translation_input_tokens=translation_input_tokens,
             translation_output_tokens=translation_output_tokens,
-            translation_queries=translation_queries
+            translation_queries=translation_queries,
+            premium_interaction_input_tokens=premium_interaction_input_tokens,
+            premium_interaction_output_tokens=premium_interaction_output_tokens,
+            premium_interaction_queries=premium_interaction_queries,
+            premium_translation_input_tokens=premium_translation_input_tokens,
+            premium_translation_output_tokens=premium_translation_output_tokens,
+            premium_translation_queries=premium_translation_queries,
         )
 
         parsed = parse_game_to_interface(
@@ -428,7 +458,7 @@ async def change_location(
     It will create new environment and game state.
     Map state will be new only if there is characters that followed user.
     """
-    use_premium = user.subscription_tier == SubscriptionTier.PREMIUM.value
+    use_premium = check_user_premium_status(user)
     game_state = get_user_game_state_by_id(game_state_id, user)
 
     if game_state is None:
@@ -477,12 +507,21 @@ async def change_location(
                 messages=messages,
                 use_premium=use_premium
             )
-            increase_user_daily_usage(
-                user=user,
-                summarization_input_tokens=input_tokens,
-                summarization_output_tokens=output_tokens,
-                summarization_queries=1
-            )
+
+            if use_premium:
+                increase_user_daily_usage(
+                    user=user,
+                    premium_summarization_input_tokens=input_tokens,
+                    premium_summarization_output_tokens=output_tokens,
+                    premium_summarization_queries=1
+                )
+            else:
+                increase_user_daily_usage(
+                    user=user,
+                    summarization_input_tokens=input_tokens,
+                    summarization_output_tokens=output_tokens,
+                    summarization_queries=1
+                )
 
         else:
             previous_environment_summary = None
@@ -556,12 +595,21 @@ async def change_map(
             messages=messages,
             use_premium=use_premium
         )
-        increase_user_daily_usage(
-            user=user,
-            summarization_input_tokens=input_tokens,
-            summarization_output_tokens=output_tokens,
-            summarization_queries=1
-        )
+
+        if use_premium:
+            increase_user_daily_usage(
+                user=user,
+                premium_summarization_input_tokens=input_tokens,
+                premium_summarization_output_tokens=output_tokens,
+                premium_summarization_queries=1
+            )
+        else:
+            increase_user_daily_usage(
+                user=user,
+                summarization_input_tokens=input_tokens,
+                summarization_output_tokens=output_tokens,
+                summarization_queries=1
+            )
     else:
         previous_environment_summary = None
 
