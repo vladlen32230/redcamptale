@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Body
 from src.schemas.states.characters import Character, CharacterSprite
+from polyglot.detect import Detector
 from src.schemas.api.game_state import (
     InteractionPost, 
     MessageGameState, 
@@ -112,7 +113,7 @@ async def start_new_game(
     response_model=GameStateInterface,
     status_code=200,
     responses={
-        400: {'description': 'Free tier usage exceeded'},
+        400: {'description': 'Language detection problems'},
         401: {'description': 'Unauthorized'},
         404: {'description': 'Game state not found'}
     }
@@ -171,15 +172,35 @@ async def interaction(
             message=None
         )
 
+    if user.language == Language.AUTO.value:
+        try:
+            if interaction_post.user_text:
+                detector = Detector(interaction_post.user_text)
+            elif recent_message:
+                detector = Detector(recent_message.displayed_text)
+            else:
+                input_language = Language.ENGLISH.value
+            
+            if not detector.reliable:
+                raise HTTPException(400, detail="Language detection problems")
+            else:
+                input_language = detector.language.name
+        except Exception:
+            print("Language detection problems")
+            raise HTTPException(400, detail="Language detection problems")
+    else:
+        input_language = user.language
+
     with get_session() as session:
         if interaction_post.user_interaction:
-            if not game_state_sprites:
+            displayed_text = interaction_post.user_text
+            if not game_state_sprites or input_language == Language.ENGLISH.value:
                 english_text = interaction_post.user_text
-                russian_text = interaction_post.user_text
-            elif interaction_post.language == Language.RUSSIAN:
-                english_text, input_tokens, output_tokens = await translator.translate_ru_to_en(
+            else:
+                english_text, input_tokens, output_tokens = await translator.translate(
                     interaction_post.user_text,
-                    Character.MAIN_CHARACTER,
+                    target_language=Language.ENGLISH.value,
+                    character=Character.MAIN_CHARACTER,
                     use_premium=use_premium
                 )
 
@@ -192,15 +213,10 @@ async def interaction(
                     translation_output_tokens += output_tokens
                     translation_queries += 1
 
-                russian_text = interaction_post.user_text
-            else:
-                english_text = interaction_post.user_text
-                russian_text = None
-
             new_message = Message(
                 character=Character.MAIN_CHARACTER.value,
                 english_text=english_text,
-                russian_translation=russian_text,
+                displayed_text=displayed_text,
                 previous_message_id=recent_message.id if recent_message is not None else None
             )
 
@@ -278,6 +294,7 @@ async def interaction(
             clothes=str_to_enum(clothes, [UlyanaClothes, AliceClothes, SlavyaClothes, LenaClothes, MikuClothes]),
             previous_history="\n\n".join(character_history),
             messages=messages,
+            narrative_preference=user.user_narrative_preference,
             use_premium=use_premium
         )
 
@@ -290,11 +307,11 @@ async def interaction(
             interaction_output_tokens += output_tokens
             interaction_queries += 1
 
-        russian_translation_message = None
-        if interaction_post.language == Language.RUSSIAN:
-            russian_translation_message, input_tokens, output_tokens = await translator.translate_en_to_ru(
+        if input_language != Language.ENGLISH.value:
+            displayed_text, input_tokens, output_tokens = await translator.translate(
                 character_message,
-                next_character,
+                target_language=input_language,
+                character=next_character,
                 use_premium=use_premium
             )
 
@@ -306,11 +323,13 @@ async def interaction(
                 translation_input_tokens += input_tokens
                 translation_output_tokens += output_tokens
                 translation_queries += 1
+        else:
+            displayed_text = character_message
 
         new_message = Message(
             character=next_character,
             english_text=character_message,
-            russian_translation=russian_translation_message,
+            displayed_text=displayed_text,
             previous_message_id=recent_message.id if recent_message is not None else None
         )
 
@@ -546,7 +565,7 @@ async def change_location(
             user_id=user.id,
             characters=character_sprites,
             environment_id=new_environment.id,
-            music=Music.NORMAL,
+            music=Music.NORMAL.value,
             last_message_id=None,
             map_state_id=new_map_state_id,
             previous_game_state_id=game_state.id
@@ -645,7 +664,7 @@ async def change_map(
             user_id=user.id,
             characters=character_sprites,
             environment_id=new_environment.id,
-            music=Music.NONE,
+            music=Music.NONE.value,
             last_message_id=None,
             map_state_id=new_map_state.id,
             previous_game_state_id=game_state.id

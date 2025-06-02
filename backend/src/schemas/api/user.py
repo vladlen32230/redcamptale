@@ -13,9 +13,9 @@ class UserPost(BaseModel):
     password: str
     game_name: str
     game_biography: str
-    language: Language
 
 class UserPut(BaseModel):
     game_name: str
     game_biography: str
+    narrative_preference: str
     language: Language

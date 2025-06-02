@@ -32,36 +32,6 @@ async def create_user(
     
     # Hash the password
     hashed_password = pwd_context.hash(user_post.password)
-
-    if user_post.language == Language.ENGLISH:
-        name = user_post.game_name
-        description = user_post.game_biography
-        russian_name = None
-        russian_description = None
-    elif user_post.language == Language.RUSSIAN:
-        name, _, __ = await translator.translate_ru_to_en(
-            user_post.game_name,
-            character=Character.MAIN_CHARACTER,
-            use_premium=True
-        )
-        description, _, __ = await translator.translate_ru_to_en(
-            user_post.game_biography,
-            character=Character.MAIN_CHARACTER,
-            use_premium=True
-        )
-        russian_name = user_post.game_name
-        russian_description = user_post.game_biography
-    
-    # Create new user
-    new_user = User(
-        name=user_post.name,
-        password=hashed_password,
-        ip_address=None,
-        user_biography_name=name,
-        user_biography_description=description,
-        user_biography_russian_name=russian_name,
-        user_biography_russian_description=russian_description
-    )
     
     with get_session() as session:
         # Check if user with same name already exists
@@ -72,6 +42,33 @@ async def create_user(
                 detail="User with this name already exists"
             )
 
+    english_name, _, __ = await translator.translate(
+        user_post.game_name,
+        target_language='English',
+        character=Character.MAIN_CHARACTER,
+        use_premium=True
+    )
+
+    english_description, _, __ = await translator.translate(
+        user_post.game_biography,
+        target_language='English',
+        character=Character.MAIN_CHARACTER,
+        use_premium=True
+    )
+    
+    # Create new user
+    new_user = User(
+        name=user_post.name,
+        password=hashed_password,
+        user_biography_name=english_name,
+        user_biography_description=english_description,
+        user_biography_displayed_name=user_post.game_name,
+        user_biography_displayed_description=user_post.game_biography,
+        user_narrative_preference="",
+        user_narrative_displayed_preference=""
+    )
+
+    with get_session() as session:
         # Add user to database
         session.add(new_user)
 
@@ -126,33 +123,44 @@ async def update_user(
     """
     Update the current user account. Requires authentication.
     """
-    if user_put.language == Language.ENGLISH:
-        name = user_put.game_name
-        description = user_put.game_biography
-
-        russian_name = None
-        russian_description = None
-    elif user_put.language == Language.RUSSIAN:
-        name, _, __ = await translator.translate_ru_to_en(
+    if user.user_biography_displayed_name != user_put.game_name:
+        english_name, _, __ = await translator.translate(
             user_put.game_name,
-            character=Character.MAIN_CHARACTER, 
-            use_premium=True
-        )
-        description, _, __ = await translator.translate_ru_to_en(
-            user_put.game_biography,
+            target_language='English',
             character=Character.MAIN_CHARACTER,
             use_premium=True
         )
+    else:
+        english_name = user.user_biography_name
 
-        russian_name = user_put.game_name
-        russian_description = user_put.game_biography
+    if user.user_biography_displayed_description != user_put.game_biography:
+        english_description, _, __ = await translator.translate(
+            user_put.game_biography,
+            target_language='English',
+            character=Character.MAIN_CHARACTER,
+            use_premium=True
+        )
+    else:
+        english_description = user.user_biography_description
+
+    if user.user_narrative_displayed_preference != user_put.narrative_preference:
+        english_narrative_preference, _, __ = await translator.translate(
+            user_put.narrative_preference,
+            target_language='English',
+            character=Character.MAIN_CHARACTER,
+            use_premium=True
+        )
+    else:
+        english_narrative_preference = user.user_narrative_preference
 
     with get_session() as session:
-        user.user_biography_name = name
-        user.user_biography_description = description
-
-        user.user_biography_russian_name = russian_name
-        user.user_biography_russian_description = russian_description
+        user.user_biography_name = english_name
+        user.user_biography_description = english_description
+        user.user_biography_displayed_name = user_put.game_name
+        user.user_biography_displayed_description = user_put.game_biography
+        user.user_narrative_preference = english_narrative_preference
+        user.user_narrative_displayed_preference = user_put.narrative_preference
+        user.language = user_put.language.value
 
         session.add(user)
         session.flush()

@@ -15,7 +15,7 @@ from src.classifier.bert import classifier as bert_classifier
 @asynccontextmanager
 async def lifespan(app: FastAPI):    
     bert_classifier.load_model()
-
+    SQLModel.metadata.create_all(engine)
     yield
 
 app = FastAPI(lifespan=lifespan, root_path="/api/v1")

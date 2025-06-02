@@ -45,14 +45,16 @@ html, body {
   z-index: 2;
   padding-bottom: 0;
   height: auto;
+  gap: 10px;
+  flex-wrap: nowrap;
 }
 
 .character-sprite {
   position: relative;
-  height: 80vh;
-  width: 25vw;
-  object-fit: cover;
-  object-position: center bottom;
+  height: 90vh;
+  width: 35vw;
+  max-width: 500px;
+  min-width: 250px;
 }
 
 /* Character transition effects */
@@ -67,10 +69,10 @@ html, body {
   bottom: 0;
   opacity: 0;
   pointer-events: none;
-  height: 80vh;
-  width: 25vw;
-  object-fit: cover;
-  object-position: center bottom;
+  height: 90vh;
+  width: 35vw;
+  max-width: 500px;
+  min-width: 250px;
 }
 
 @keyframes fadeIn {
@@ -103,7 +105,7 @@ html, body {
   left: 0;
   width: 100%;
   height: 100%;
-  background-size: cover;
+  background-size: contain;
   background-position: center bottom;
   background-repeat: no-repeat;
   transition: background-image 0.5s ease-in-out;
@@ -350,9 +352,9 @@ html, body {
 
 .map-container {
   width: auto;
-  max-width: 90%;
+  max-width: 100%;
   height: auto;
-  max-height: 90%;
+  max-height: 100%;
   background-color: transparent;
   border-radius: 10px;
   overflow: hidden;
@@ -797,6 +799,36 @@ html, body {
     /* top, left, translate removed */
   }
 
+  /* Adjust characters container for mobile */
+  .characters-container {
+    gap: 5px; /* Reduce gap between characters on mobile */
+    justify-content: space-evenly; /* Better distribute characters across screen */
+  }
+
+  /* Make save item layout vertical on mobile */
+  .save-item {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+  }
+  
+  .save-info {
+    flex: 1;
+  }
+  
+  .save-actions {
+    flex-direction: column;
+    gap: 8px;
+    width: auto;
+    min-width: 80px;
+  }
+  
+  .action-button {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+  }
+
   /* Ensure message box doesn't overlap with top controls AND reverts width */
   .message-box {
     width: 95vw;
@@ -807,7 +839,6 @@ html, body {
     display: flex;
     flex-direction: column;
   }
-
 
   .messages-container {
     flex-grow: 1;
@@ -836,21 +867,32 @@ html, body {
   }
 
   .control-button {
-    font-size: 2.3vw;
-    padding: 5px 10px;
+    font-size: 2.5vw;
+    padding: 5px 2px;
     margin: 0;
     white-space: nowrap;
   }
 
-
-
   .character-sprite,
   .character-sprite.fading-out {
-    width: 80vw; /* Increased from 80vw for much better visibility on mobile */
-    height: 53vh; /* Reduced height to fit all characters on page */
-    /* max-width: 700px; is inherited */
-    /* Ensure cropping is maintained on mobile */
-    object-fit: cover;
-    object-position: center bottom;
+    width: 65vw; /* Increased from 45vw for much better visibility */
+    height: 75vh; /* Increased from 60vh for better character visibility */
+    max-width: 450px; /* Increased from 300px for better tablet support */
+    min-width: 200px; /* Increased from 150px for better minimum visibility */
+  }
+}
+
+/* Tablet adjustments for better character sizing */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .character-sprite,
+  .character-sprite.fading-out {
+    width: 32vw; /* Increased from 28vw for better visibility */
+    height: 80vh; /* Increased from 75vh for better character visibility */
+    max-width: 420px; /* Increased from 350px */
+    min-width: 220px; /* Increased from 180px */
+  }
+  
+  .characters-container {
+    gap: 8px; /* Medium gap for tablets */
   }
 }

@@ -3,8 +3,14 @@ FROM python:3.12.10-slim-bullseye
 WORKDIR /app
 
 # Install system dependencies if needed
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libicu-dev \
+        pkg-config \
+        g++ \
+        make \
+        python3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt .

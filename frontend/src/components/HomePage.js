@@ -5,7 +5,6 @@ import '../styles/HomePage.css';
 
 // Backend URL configuration
 const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
-
 const HomePage = () => {
   // Authentication state - determined by JWT in localStorage
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -29,11 +28,8 @@ const HomePage = () => {
     try {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
-      
-      // Map currentLang for the query parameter
-      const apiQueryLanguage = currentLang === 'en' ? 'english' : 'russian';
 
-      const response = await fetch(`${BACKEND_URL}/api/v1/user/me?lang=${apiQueryLanguage}`, {
+      const response = await fetch(`${BACKEND_URL}/api/v1/user/me`, {
         method: 'GET',
         headers: headers
       });
@@ -94,6 +90,7 @@ const HomePage = () => {
     localStorage.removeItem('token');
     setIsAuthenticated(false);
     setUserData(null);
+    setShowAccountModal(false); // Close the account modal
   };
 
   // Switch language
@@ -183,6 +180,10 @@ const HomePage = () => {
       await fetchUserData();
       // Close the form
       handleCloseForm();
+      // Automatically show account modal after successful login
+      setTimeout(() => {
+        handleMyAccountClick();
+      }, 100);
     } catch (error) {
       setLoginError(error.message || 'Login failed. Please try again.');
     }
@@ -327,18 +328,12 @@ const HomePage = () => {
     setUpdateSuccess('');
     
     if (userData) {
-      // Determine which biography to display based on currentLang
-      let biographyNameToDisplay = userData.user_biography_name;
-      let biographyDescriptionToDisplay = userData.user_biography_description;
-
-      if (currentLang === 'ru' && userData.user_biography_russian_name && userData.user_biography_russian_description) {
-        biographyNameToDisplay = userData.user_biography_russian_name;
-        biographyDescriptionToDisplay = userData.user_biography_russian_description;
-      }
-
+      // Use the displayed fields directly and the user's actual language preference
       setAccountFormData({
-        game_name: biographyNameToDisplay,
-        game_biography: biographyDescriptionToDisplay
+        game_name: userData.user_biography_displayed_name || '',
+        game_biography: userData.user_biography_displayed_description || '',
+        narrative_preference: userData.user_narrative_displayed_preference || '',
+        language: userData.language || 'auto' // Use the user's actual language preference
       });
     }
     
@@ -370,13 +365,12 @@ const HomePage = () => {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
       
-      // Map currentLang to backend expected values for the payload
-      const apiPayloadLanguage = currentLang === 'en' ? 'english' : 'russian';
-
-      // Send current language with the payload
+      // Use the selected language from the form instead of mapping currentLang
       const payload = {
-        ...accountFormData, // This will send game_name and game_biography as currently in the form
-        language: apiPayloadLanguage // Use mapped language
+        game_name: accountFormData.game_name,
+        game_biography: accountFormData.game_biography,
+        narrative_preference: accountFormData.narrative_preference,
+        language: accountFormData.language // Use the language selected in the form
       };
 
       const response = await fetch(`${BACKEND_URL}/api/v1/user`, {
@@ -392,18 +386,12 @@ const HomePage = () => {
       const updatedUserData = await response.json(); // Backend returns the full User object
       setUserData(updatedUserData);
 
-      // Determine which biography to display from the updated user data
-      let updatedBiographyNameToDisplay = updatedUserData.user_biography_name;
-      let updatedBiographyDescriptionToDisplay = updatedUserData.user_biography_description;
-
-      if (currentLang === 'ru' && updatedUserData.user_biography_russian_name && updatedUserData.user_biography_russian_description) {
-        updatedBiographyNameToDisplay = updatedUserData.user_biography_russian_name;
-        updatedBiographyDescriptionToDisplay = updatedUserData.user_biography_russian_description;
-      }
-      
+      // Use the displayed fields from the updated user data
       setAccountFormData({
-        game_name: updatedBiographyNameToDisplay,
-        game_biography: updatedBiographyDescriptionToDisplay
+        game_name: updatedUserData.user_biography_displayed_name || '',
+        game_biography: updatedUserData.user_biography_displayed_description || '',
+        narrative_preference: updatedUserData.user_narrative_displayed_preference || '',
+        language: accountFormData.language // Keep the selected language
       });
       setUpdateSuccess(currentLang === 'en' ? 'Account updated successfully!' : 'Аккаунт успешно обновлен!');
       
@@ -766,6 +754,11 @@ const HomePage = () => {
           <div className="form-container">
             <button className="close-button" onClick={handleCloseForm}>&times;</button>
             <h2>{t.createAccount}</h2>
+            <p style={{ color: '#666', fontSize: '0.9rem', fontStyle: 'italic', marginBottom: '15px' }}>
+              {currentLang === 'en' 
+                ? 'Read the help section to understand what this game is all about' 
+                : 'Прочитайте справку, чтобы понять, о чём эта игра'}
+            </p>
             {registerError && <div className="error-message">{registerError}</div>}
             {registerSuccess && <div className="success-message">{registerSuccess}</div>}
             <form onSubmit={handleRegisterSubmit}>
@@ -854,6 +847,7 @@ const HomePage = () => {
             <h2>{t.contacts}</h2>
             <div className="contacts-content">
               <p>Owner: vladlen32230@gmail.com</p>
+              <p>Telegram: @vladlen32230</p>
             </div>
           </div>
         </div>
@@ -937,6 +931,67 @@ const HomePage = () => {
                         required
                       ></textarea>
                     </div>
+                    <div className="form-group">
+                      <label htmlFor="narrative_preference">
+                        {currentLang === 'en' ? 'Narrative Preference' : 'Предпочтение сюжета'}
+                      </label>
+                      <textarea
+                        id="narrative_preference"
+                        name="narrative_preference"
+                        value={accountFormData.narrative_preference || ''}
+                        onChange={handleAccountUpdateChange}
+                        rows="3"
+                        placeholder={currentLang === 'en' ? 'Always respond shortly' : 'Всегда отвечать кратко'}
+                      ></textarea>
+                    </div>
+                    
+                    {/* Scroll down indicator */}
+                    <div className="scroll-indicator" style={{ 
+                      textAlign: 'center', 
+                      marginTop: '15px', 
+                      color: '#9acd32', 
+                      fontSize: '0.9rem',
+                      opacity: '0.8'
+                    }}>
+                      ↓ {currentLang === 'en' ? 'Scroll down for more options' : 'Прокрутите вниз для дополнительных опций'} ↓
+                    </div>
+                    
+                    <div className="form-group">
+                      <label htmlFor="language">
+                        {currentLang === 'en' ? 'Language Preference' : 'Предпочтение языка'}
+                      </label>
+                      <select
+                        id="language"
+                        name="language"
+                        value={accountFormData.language || 'auto'}
+                        onChange={handleAccountUpdateChange}
+                        required
+                      >
+                        <option value="auto">
+                          {currentLang === 'en' ? 'Auto-detect' : 'Автоопределение'}
+                        </option>
+                        <option value="English">English</option>
+                        <option value="Russian">Русский</option>
+                        <option value="Chinese (Simplified)">中文 (简体)</option>
+                        <option value="Chinese (Traditional)">中文 (繁體)</option>
+                        <option value="Spanish">Español</option>
+                        <option value="Hindi">हिन्दी</option>
+                        <option value="Korean">한국어</option>
+                        <option value="French">Français</option>
+                        <option value="Italian">Italiano</option>
+                        <option value="Dutch">Nederlands</option>
+                        <option value="Polish">Polski</option>
+                        <option value="Arabic">العربية</option>
+                        <option value="Portuguese">Português</option>
+                        <option value="Japanese">日本語</option>
+                        <option value="German">Deutsch</option>
+                        <option value="Indonesian">Bahasa Indonesia</option>
+                        <option value="Turkish">Türkçe</option>
+                        <option value="Vietnamese">Tiếng Việt</option>
+                        <option value="Romanian">Română</option>
+                        <option value="Ukrainian">Українська</option>
+                      </select>
+                    </div>
                     <button type="submit" className="form-button" disabled={isUpdatingAccount}>
                       {isUpdatingAccount 
                         ? (currentLang === 'en' ? 'Updating...' : 'Обновление...') 
@@ -1017,6 +1072,17 @@ const HomePage = () => {
                         {currentLang === 'en' ? 'Delete All My Data' : 'Удалить все мои данные'}
                       </button>
                     )}
+                  </div>
+                  
+                  {/* Logout Section */}
+                  <div style={{ marginTop: '20px' }}>
+                    <button 
+                      className="form-button" 
+                      style={{ backgroundColor: '#4a6da7', color: 'white', width: '100%' }}
+                      onClick={handleLogout}
+                    >
+                      {currentLang === 'en' ? 'Logout' : 'Выйти'}
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1120,6 +1186,11 @@ const HomePage = () => {
                 <li>{t.helpItem8 || "🗣️ Persuade characters to follow you to any location."}</li>
                 <li>{t.helpItem9 || "🖱️ Click on the background to continue the story, or type a message and click 'Send' to interact with characters."}</li>
               </ul>
+              <p style={{ color: '#d9534f', fontWeight: 'bold', marginTop: '20px', padding: '10px', backgroundColor: 'rgba(217, 83, 79, 0.1)', borderRadius: '5px' }}>
+                {currentLang === 'en' 
+                  ? "🌐 Language Support: You can input text in any language! If you've selected 'auto-detect' in your account settings, the game will automatically detect your language. Alternatively, choose your preferred language from the dropdown menu in your account settings if you experience any issues with auto-detection."
+                  : "🌐 Поддержка языков: Вы можете вводить текст на любом языке! Если вы выбрали 'автоопределение' в настройках аккаунта, игра автоматически определит ваш язык. Alternatively, выберите предпочитаемый язык из выпадающего меню в настройках аккаунта, если у вас возникают проблемы с автоопределением."}
+              </p>
             </div>
           </div>
         </div>
@@ -1167,14 +1238,10 @@ const HomePage = () => {
                   ? `Welcome back, ${userData.name || 'Player'}!` 
                   : `Добро пожаловать, ${userData.name || 'Игрок'}!`}
               </h2>
-              {userData.user_biography_name && (
+              {userData.user_biography_displayed_name && (
                 <p style={{ margin: '0', fontSize: '1.2em' }}>
                   {currentLang === 'en' ? 'Playing as: ' : 'Играете за: '}
-                  <strong>
-                    {currentLang === 'ru' && userData.user_biography_russian_name 
-                      ? userData.user_biography_russian_name 
-                      : userData.user_biography_name}
-                  </strong>
+                  <strong>{userData.user_biography_displayed_name}</strong>
                 </p>
               )}
             </div>
@@ -1192,10 +1259,6 @@ const HomePage = () => {
               <button className="game-button" onClick={handleSavesClick}>{t.saves}</button>
               <button className="game-button" onClick={handleHelpClick}>{t.help}</button>
               <button className="game-button" onClick={handleContactsClick}>{t.contacts}</button>
-              
-              <button className="game-button" onClick={handleLogout} style={{ backgroundColor: '#4a6da7', marginTop: '10px' }}>
-                {currentLang === 'en' ? 'Logout' : 'Выйти'}
-              </button>
             </div>
           </div>
         ) : (

@@ -5,6 +5,7 @@ from src.schemas.states.times import Time
 from src.schemas.states.other import CharacterLocation
 from src.schemas.states.music import Music
 from src.schemas.states.characters import CharacterSprite
+from src.schemas.other import Language
 from enum import Enum
 
 from sqlalchemy import Column, String, ForeignKey
@@ -56,8 +57,13 @@ class User(SQLModel, table=True):
     user_biography_name: str
     user_biography_description: str
 
-    user_biography_russian_name: str | None
-    user_biography_russian_description: str | None
+    user_biography_displayed_name: str
+    user_biography_displayed_description: str
+
+    user_narrative_preference: str
+    user_narrative_displayed_preference: str
+
+    language: str = SQLModelField(default=Language.AUTO.value, sa_column=Column(String))
 
     subscription_tier: str = SQLModelField(default=SubscriptionTier.FREE.value, sa_column=Column(String))
     subscription_started_at: datetime | None = SQLModelField(default=None)
@@ -91,7 +97,7 @@ class Message(SQLModel, table=True):
     character: str = SQLModelField(sa_column=Column(String))
 
     english_text: str
-    russian_translation: str | None
+    displayed_text: str
 
     previous_message_id: int | None = SQLModelField(sa_column=Column(ForeignKey("messages.id", ondelete="SET NULL")))
 

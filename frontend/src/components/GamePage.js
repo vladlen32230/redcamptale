@@ -5,7 +5,6 @@ import '../styles/GamePage.css';
 
 // Backend URL configuration
 const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
-
 // Define character colors
 const characterColors = {
   'ulyana': 'red',
@@ -42,9 +41,7 @@ const MessageHistory = ({ messages, currentLang, onMessageClick }) => {
             {getCharacterDisplayName(msg.character)}
           </div>
           <div className="message-text">
-            {currentLang === 'ru' && msg.russian_translation
-              ? msg.russian_translation
-              : msg.english_text}
+            {msg.displayed_text}
           </div>
         </div>
       ))}
@@ -61,6 +58,7 @@ const GamePage = () => {
   const [gameState, setGameState] = useState(null);
   const [previousCharacters, setPreviousCharacters] = useState([]);
   const [characterTransitioning, setCharacterTransitioning] = useState(false);
+  const [userLanguagePreference, setUserLanguagePreference] = useState(null);
 
   const [error, setError] = useState(null);
   const [userInput, setUserInput] = useState('');
@@ -218,6 +216,33 @@ const GamePage = () => {
     
     fetchGameState();
   }, []);
+  
+  // Fetch user language preference
+  useEffect(() => {
+    const fetchUserLanguagePreference = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return; // No token, skip fetching user data
+        
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        const response = await fetch(`${BACKEND_URL}/api/v1/user/me`, {
+          method: 'GET',
+          headers: headers
+        });
+        
+        if (response.ok) {
+          const userData = await response.json();
+          setUserLanguagePreference(userData.language || 'auto');
+        }
+      } catch (error) {
+        console.error('Error fetching user language preference:', error);
+        // Don't set error state for this, just use default
+      }
+    };
+    
+    fetchUserLanguagePreference();
+  }, [currentLang]);
   
   // Function to select a random music URL from the list
   const getRandomMusicUrl = (musicUrls) => {
@@ -782,12 +807,16 @@ const GamePage = () => {
         headers: headers,
         body: JSON.stringify({
           user_interaction: false,
-          user_text: null,
-          language: currentLang === 'ru' ? 'russian' : 'english'
+          user_text: null
         })
       });
       
       if (!response.ok) {
+        if (response.status === 400) {
+          throw new Error(currentLang === 'ru' 
+            ? 'Попробуйте написать более длинное сообщение или переключите в настройках аккаунта на желаемый язык ввода.'
+            : 'Try to have longer message or switch in account settings to desired input language.');
+        }
         throw new Error(`Error: ${response.status}`);
       }
       
@@ -901,12 +930,16 @@ const GamePage = () => {
         headers: headers,
         body: JSON.stringify({
           user_interaction: true,
-          user_text: userInput,
-          language: currentLang === 'ru' ? 'russian' : 'english'
+          user_text: userInput
         })
       });
       
       if (!response.ok) {
+        if (response.status === 400) {
+          throw new Error(currentLang === 'ru' 
+            ? 'Попробуйте написать более длинное сообщение или переключите в настройках аккаунта на желаемый язык ввода.'
+            : 'Try to have longer message or switch in account settings to desired input language.');
+        }
         throw new Error(`Error: ${response.status}`);
       }
       
@@ -932,10 +965,8 @@ const GamePage = () => {
 
     const messageContainer = gameState?.message?.message;
 
-    if (messageContainer && (messageContainer.english_text || messageContainer.russian_translation)) {
-      const targetText = currentLang === 'ru' && messageContainer.russian_translation
-        ? messageContainer.russian_translation
-        : messageContainer.english_text;
+    if (messageContainer && messageContainer.displayed_text) {
+      const targetText = messageContainer.displayed_text;
 
       if (isNewInteractionMessageRef.current && targetText) {
         isNewInteractionMessageRef.current = false; // Consume the flag for this message instance
@@ -1101,6 +1132,56 @@ const GamePage = () => {
       
       {/* Message Box */}
       <div className="message-box">
+        {/* Language indicator in top left corner */}
+        <div className="language-indicator" style={{
+          position: 'absolute',
+          top: '18px',
+          left: '5px',
+          backgroundColor: 'rgba(0, 100, 0, 0.8)',
+          color: '#9acd32',
+          padding: '4px 4px',
+          borderRadius: '4px',
+          fontSize: '0.7rem',
+          fontWeight: 'bold',
+          border: '1px solid #9acd32',
+          zIndex: 10
+        }}>
+          {(() => {
+            // Use the fetched user language preference or default to current interface language
+            const userLanguage = userLanguagePreference || 'auto';
+            
+            // Map language preferences to short codes
+            const languageMap = {
+              'auto': 'AUTO',
+              'English': 'EN',
+              'Russian': 'RU',
+              'Chinese (Simplified)': 'ZH',
+              'Chinese (Traditional)': 'ZH-T',
+              'Spanish': 'ES',
+              'Hindi': 'HI',
+              'Korean': 'KO',
+              'French': 'FR',
+              'Italian': 'IT',
+              'Dutch': 'NL',
+              'Polish': 'PL',
+              'Arabic': 'AR',
+              'Portuguese': 'PT',
+              'Japanese': 'JA',
+              'German': 'DE',
+              'Indonesian': 'ID',
+              'Turkish': 'TR',
+              'Vietnamese': 'VI',
+              'Romanian': 'RO',
+              'Ukrainian': 'UA'
+            };
+            
+            const languageCode = languageMap[userLanguage] || 'AUTO';
+            const prefix = currentLang === 'ru' ? 'ЯЗЫК:' : 'LANG:';
+            
+            return `${prefix} ${languageCode}`;
+          })()}
+        </div>
+        
         {/* Game Control Buttons - NOW FIRST */}
         <div className="game-controls">
           <div className="left-controls">

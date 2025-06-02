@@ -6,5 +6,9 @@ premium_model_name = os.environ["PREMIUM_MODEL_NAME"]
 
 llm_client = AsyncOpenAI(
     base_url=os.environ["LLM_BASE_URL"],
-    api_key=os.environ["LLM_API_KEY"]
+    api_key=os.environ["LLM_API_KEY"],
+    default_headers={
+        "HTTP-Referer": "https://redcamptale.web.app",
+        "X-Title": "Red Camp Tale",
+    },
 )

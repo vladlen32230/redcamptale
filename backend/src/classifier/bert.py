@@ -1,5 +1,6 @@
 import onnxruntime as ort
 import numpy as np
+import requests
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from src.schemas.database import Message, CharacterSprite
 from src.schemas.states.characters import Character
@@ -116,8 +117,7 @@ class Classifier:
         logger.info("Model loaded and converted to ONNX successfully!")
 
     def _onnx_zero_shot_classification(self, session, tokenizer, text, candidate_labels, hypothesis_template):
-        """Perform zero-shot classification using ONNX model"""
-        # Create premise-hypothesis pairs
+        """Perform zero-shot classification using Hugging Face Inference API with fallback to ONNX model"""
         pairs = [(text, hypothesis_template.format(label)) for label in candidate_labels]
         
         batch_inputs = tokenizer(
@@ -134,7 +134,7 @@ class Classifier:
         entailment_scores = logits[:, 0]
 
         sorted_indices = np.argsort(entailment_scores)[::-1]
-        
+
         return {
             'labels': [candidate_labels[i] for i in sorted_indices],
             'scores': [float(entailment_scores[i]) for i in sorted_indices]
@@ -237,13 +237,18 @@ class Classifier:
             hypothesis_template
         )
 
+        # Apply softmax to normalize the scores into probabilities
+        raw_scores = np.array(result['scores'])
+        exp_scores = np.exp(raw_scores - np.max(raw_scores))  # Subtract max for numerical stability
+        softmax_scores = exp_scores / np.sum(exp_scores)
+
         follow_score = None
-        for label, score in zip(result['labels'], result['scores']):
+        for i, label in enumerate(result['labels']):
             if label == "agreed to follow":
-                follow_score = score
+                follow_score = softmax_scores[i]
                 break
 
-        return follow_score is not None and follow_score > 0.975
+        return follow_score is not None and follow_score > 0.98
 
     def determine_music(
         self,
@@ -268,7 +273,7 @@ class Classifier:
         # Get the top score
         top_score = result['scores'][0]
         
-        if top_score > 0.35:
+        if top_score > 3:
             i = music_descriptions.index(result['labels'][0])
             music = musics[i]
         else:

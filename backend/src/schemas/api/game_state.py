@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field
 from src.schemas.database import Message
-from src.schemas.other import Language
 from src.schemas.states.characters import Character
 from src.schemas.states.locations import Location
 from src.schemas.states.times import Time
@@ -9,7 +8,6 @@ from src.schemas.states.music import Music
 class InteractionPost(BaseModel):
     user_interaction: bool = Field(description="Whether user wants to send his message or request other chracter's message.")
     user_text: str | None = Field(example="Hello, how are you?")
-    language: Language = Field(description="Language of the message.")
 
 class CharacterSpriteURLS(BaseModel):
     pose_url: str = Field(description="URL of the character's pose.")

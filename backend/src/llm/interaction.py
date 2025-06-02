@@ -23,6 +23,7 @@ async def get_summary_of_messages(messages: list[Message], use_premium=False) ->
                 {"role": "user", "content": interaction}
             ],
             top_p=0.95,
+            temperature=0.7,
             max_completion_tokens=512
         )
     else:
@@ -33,6 +34,7 @@ async def get_summary_of_messages(messages: list[Message], use_premium=False) ->
                 {"role": "user", "content": interaction}
             ],
             top_p=0.95,
+            temperature=0.7,
             max_completion_tokens=512
         )
 
@@ -52,6 +54,7 @@ async def get_character_message(
     clothes: Clothes,
     previous_history: str,
     messages: list[Message],
+    narrative_preference: str,
     use_premium=False
 ) -> tuple[str, int, int]:
     interaction = "\n\n".join(
@@ -76,14 +79,17 @@ async def get_character_message(
         character_description=character_description,
         location_description=location_description,
         clothes_description=clothes_description,
-        other_character_location_descriptions="\n".join(other_character_location_descriptions),
-        other_characters_descriptions="\n".join(other_characters_descriptions),
+        other_character_location_descriptions="\n\n".join(other_character_location_descriptions),
+        other_characters_descriptions="\n\n".join(other_characters_descriptions),
         previous_history=previous_history,
         interaction=interaction,
         name_of_main_character=name_of_main_character,
         biography_of_main_character=biography_of_main_character,
-        time_of_day=time_of_day_description
+        time_of_day=time_of_day_description,
+        narrative_preference=narrative_preference
     )
+
+    print(system_prompt)
 
     if use_premium:
         response = await llm_client.chat.completions.create(
@@ -91,7 +97,7 @@ async def get_character_message(
             messages=[
                 {"role": "system", "content": system_prompt},
             ],
-            top_p=0.9,
+            top_p=0.925,
             temperature=1.1,
             max_completion_tokens=256
         )
