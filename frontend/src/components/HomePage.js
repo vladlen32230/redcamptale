@@ -4,7 +4,8 @@ import translations from '../translations';
 import '../styles/HomePage.css';
 
 // Backend URL configuration
-const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
+// const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
+const BACKEND_URL = 'http://192.168.0.12:8080';
 const HomePage = () => {
   // Authentication state - determined by JWT in localStorage
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -180,9 +181,9 @@ const HomePage = () => {
       await fetchUserData();
       // Close the form
       handleCloseForm();
-      // Automatically show account modal after successful login
+      // Automatically show help modal after successful login
       setTimeout(() => {
-        handleMyAccountClick();
+        handleHelpClick();
       }, 100);
     } catch (error) {
       setLoginError(error.message || 'Login failed. Please try again.');
