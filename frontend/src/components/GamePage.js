@@ -20,10 +20,8 @@ const MessageHistory = ({ messages, currentLang, onMessageClick }) => {
   if (!messages || messages.length === 0) return null;
   
   const getCharacterDisplayName = (characterName) => {
-    if (characterName === 'main_character') {
-      return currentLang === 'ru' ? 'Вы' : 'You';
-    }
-    return characterName;
+    const t = translations[currentLang] || translations.en;
+    return t.characters[characterName?.toLowerCase()] || characterName;
   };
 
   return (
@@ -120,9 +118,8 @@ const GamePage = () => {
   
   // Helper function for character display name and style
   const getCharacterDisplayNameAndStyle = (characterName) => {
-    const displayName = characterName === 'main_character' 
-      ? (currentLang === 'ru' ? 'Вы' : 'You') 
-      : characterName;
+    const t = translations[currentLang] || translations.en;
+    const displayName = t.characters[characterName?.toLowerCase()] || characterName;
     const style = { color: characterColors[characterName?.toLowerCase()] || 'inherit' };
     return { displayName, style };
   };
@@ -1141,7 +1138,7 @@ const GamePage = () => {
           color: '#9acd32',
           padding: '4px 4px',
           borderRadius: '4px',
-          fontSize: '0.7rem',
+          fontSize: '0.5rem',
           fontWeight: 'bold',
           border: '1px solid #9acd32',
           zIndex: 10

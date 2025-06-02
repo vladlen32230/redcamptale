@@ -4,8 +4,7 @@ import translations from '../translations';
 import '../styles/HomePage.css';
 
 // Backend URL configuration
-// const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
-const BACKEND_URL = 'http://192.168.0.12:8080';
+const BACKEND_URL = 'https://redcamptalesbackend-409594015641.europe-north1.run.app';
 const HomePage = () => {
   // Authentication state - determined by JWT in localStorage
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -689,22 +688,6 @@ const HomePage = () => {
         </div>
       )}
 
-      {/* Language switcher */}
-      <div className="language-switcher">
-        <button 
-          className={`language-button ${currentLang === 'en' ? 'active' : ''}`}
-          onClick={() => switchLanguage('en')}
-        >
-          EN
-        </button>
-        <button 
-          className={`language-button ${currentLang === 'ru' ? 'active' : ''}`}
-          onClick={() => switchLanguage('ru')}
-        >
-          RU
-        </button>
-      </div>
-
       {/* Login Form */}
       {showLoginForm && (
         <div className="form-overlay">
@@ -1277,6 +1260,52 @@ const HomePage = () => {
             </div>
           </div>
         )}
+
+        {/* Language switching buttons - POSITIONED AT THE VERY BOTTOM */}
+        <div className="language-switcher" style={{ 
+          textAlign: 'center', 
+          marginTop: '40px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'center',
+          position: 'relative',
+          zIndex: 1,
+        }}>
+          <button 
+            className={`language-button ${currentLang === 'en' ? 'active' : ''}`}
+            onClick={() => switchLanguage('en')}
+            style={{
+              padding: '10px 10px',
+              border: currentLang === 'en' ? '2px solid #9acd32' : '2px solid rgba(255,255,255,0.3)',
+              backgroundColor: currentLang === 'en' ? 'rgba(154, 205, 50, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+              color: currentLang === 'en' ? '#9acd32' : 'white',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: currentLang === 'en' ? 'bold' : 'normal',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            English
+          </button>
+          <button 
+            className={`language-button ${currentLang === 'ru' ? 'active' : ''}`}
+            onClick={() => switchLanguage('ru')}
+            style={{
+              padding: '10px 10px',
+              border: currentLang === 'ru' ? '2px solid #9acd32' : '2px solid rgba(255,255,255,0.3)',
+              backgroundColor: currentLang === 'ru' ? 'rgba(154, 205, 50, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+              color: currentLang === 'ru' ? '#9acd32' : 'white',
+              borderRadius: '5px',
+              cursor: 'pointer',
+              fontSize: '16px',
+              fontWeight: currentLang === 'ru' ? 'bold' : 'normal',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            Русский
+          </button>
+        </div>
       </div>
     </div>
   );

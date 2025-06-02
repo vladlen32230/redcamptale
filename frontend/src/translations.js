@@ -25,7 +25,17 @@ const translations = {
     helpItem6: "🗺️ Use the map to change locations.",
     helpItem7: "⏳ Click on \"wait\" to advance time.",
     helpItem8: "🗣️ Persuade characters to follow you to any location.",
-    helpItem9: "🖱️ Click on the background to continue the story, or type a message and click 'Send' to interact with characters."
+    helpItem9: "🖱️ Click on the background to continue the story, or type a message and click 'Send' to interact with characters.",
+    
+    // Character names
+    characters: {
+      ulyana: "Ulyana",
+      miku: "Miku", 
+      slavya: "Slavya",
+      alice: "Alice",
+      lena: "Lena",
+      main_character: "You"
+    }
   },
   ru: {
     game: "Игра",
@@ -53,7 +63,17 @@ const translations = {
     helpItem6: "🗺️ Используйте карту для смены локаций.",
     helpItem7: "⏳ Нажмите «ждать», чтобы продвинуть время.",
     helpItem8: "🗣️ Убеждайте персонажей следовать за вами в любую локацию.",
-    helpItem9: "🖱️ Нажмите на фон, чтобы продолжить историю, или введите сообщение и нажмите «Отправить», чтобы взаимодействовать с персонажами."
+    helpItem9: "🖱️ Нажмите на фон, чтобы продолжить историю, или введите сообщение и нажмите «Отправить», чтобы взаимодействовать с персонажами.",
+    
+    // Character names
+    characters: {
+      ulyana: "Ульяна",
+      miku: "Мику",
+      slavya: "Славя", 
+      alice: "Алиса",
+      lena: "Лена",
+      main_character: "Вы"
+    }
   }
 };
 
