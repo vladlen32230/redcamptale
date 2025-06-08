@@ -248,7 +248,7 @@ class Classifier:
                 follow_score = softmax_scores[i]
                 break
 
-        return follow_score is not None and follow_score > 0.98
+        return follow_score is not None and follow_score > 0.96
 
     def determine_music(
         self,
