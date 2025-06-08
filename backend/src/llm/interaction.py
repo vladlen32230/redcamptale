@@ -89,8 +89,6 @@ async def get_character_message(
         narrative_preference=narrative_preference
     )
 
-    print(system_prompt)
-
     if use_premium:
         response = await llm_client.chat.completions.create(
             model=premium_model_name,

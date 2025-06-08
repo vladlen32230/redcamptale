@@ -186,7 +186,6 @@ async def interaction(
             else:
                 input_language = detector.language.name
         except Exception:
-            print("Language detection problems")
             raise HTTPException(400, detail="Language detection problems")
     else:
         input_language = user.language
