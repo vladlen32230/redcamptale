@@ -35,7 +35,46 @@ class Classifier:
     
     def load_model(self):
         """
+        Load the pre-built ONNX model and tokenizer from the models directory
+        """
+        
+        models_dir = "/models"
+        onnx_model_path = os.path.join(models_dir, "classifier.onnx")
+        tokenizer_path = os.path.join(models_dir, "tokenizer")
+        
+        # Check if pre-built model exists
+        if os.path.exists(onnx_model_path) and os.path.exists(tokenizer_path):
+            logger.info("Loading pre-built ONNX model and tokenizer...")
+            
+            # Load tokenizer from saved directory
+            self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+            
+            # Configure ONNX Runtime for CPU with optimizations
+            providers = ['CPUExecutionProvider']
+            session_options = ort.SessionOptions()
+            session_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            session_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL  # Better for CPU
+            session_options.intra_op_num_threads = 2
+            session_options.inter_op_num_threads = 1
+            
+            # Load pre-built ONNX model from disk
+            self.session = ort.InferenceSession(
+                onnx_model_path, 
+                sess_options=session_options,
+                providers=providers
+            )
+            
+            logger.info("Pre-built ONNX model loaded successfully!")
+            
+        else:
+            logger.info("Pre-built ONNX model not found, building at runtime...")
+            # Fallback to runtime conversion (original code)
+            self._load_model_runtime()
+    
+    def _load_model_runtime(self):
+        """
         Load the model using transformers and convert to ONNX in memory for inference
+        (Fallback method for when pre-built model is not available)
         """
         
         # Model name for tokenizer and model

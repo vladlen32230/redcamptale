@@ -20,6 +20,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir optimum onnxruntime onnx
 
+# Set environment variable for model preloading
+ENV STANDARD_CLASSIFIER_NAME=MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli
+
+# Copy build script and run it to download and convert model to ONNX
+COPY build_model.py .
+RUN python build_model.py
+
 # Copy source code
 COPY main.py .
 COPY src src
